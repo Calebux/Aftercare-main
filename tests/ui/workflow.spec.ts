@@ -1,0 +1,28 @@
+import { test, expect } from '@playwright/test';
+test('operator rejects stale plan, preserves human work, and reconciles interruption', async ({ page, request }) => {
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  await request.post('/api/reset', { data: {} });
+  await page.goto('/');
+  await page.getByRole('button', { name: /Prepare repair plan/ }).click();
+  await expect(page.getByRole('button', { name: 'Approve 3 changes' })).toBeVisible();
+  await page.getByRole('button', { name: 'Simulate a human edit' }).click();
+  await expect(page.getByRole('button', { name: /Approve 3/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Review updated plan' }).click();
+  await expect(page.getByText('Preserve the human assignment')).toBeVisible();
+  await page.getByLabel('Interrupt after the first write').check();
+  await page.getByRole('button', { name: 'Approve 2 changes' }).click();
+  await page.getByRole('button', { name: 'Apply approved repair' }).click();
+  await expect(page.getByRole('button', { name: 'Reconcile & resume' })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Reconcile & resume' }).click();
+  await expect(page.getByRole('button', { name: 'Export recovery receipt' })).toBeVisible();
+  const state = await (await request.get('/api/workspace')).json();
+  expect(state.records[0].revision).toBe(2);
+  expect(state.records[1].fields.assignee).toBe('Morgan Lee');
+  expect(state.records[2].fields.correction).toContain('Morgan Lee');
+  expect(errors).toEqual([]);
+  await page.screenshot({ path: 'test-results/desktop-recovery.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/mobile-recovery.png', fullPage: true });
+});
