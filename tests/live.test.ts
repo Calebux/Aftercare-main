@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { approve, approveCurrent, execute, prepare, prepareCurrent, seedWorkspace } from '../server/recovery.js';
 import { connectLive, liveAdapter, readLiveConfig, type LiveConfig } from '../server/live.js';
+import { assess } from '../server/agent.js';
+import type { RecordedAction } from '../shared/types.js';
 
 const env = {
   AFTERCARE_GITHUB_TOKEN: 'github_pat_test', AFTERCARE_GITHUB_REPO: 'demo-owner/aftercare-demo',
@@ -17,6 +19,7 @@ function fakeApps(options: { members?: Array<{ id: string; name: string }>; esca
   const members = options.members ?? team.slice(0, 2);
   const issues = new Map<number, string>();
   const assignees = new Map<string, string>();
+  const deleted: string[] = [];
   const messages: Array<{ ts: string; text: string; thread_ts?: string }> = [];
   const requests: Array<{ method: string; url: URL; body: any; headers: Record<string, string> }> = [];
   const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -42,6 +45,7 @@ function fakeApps(options: { members?: Array<{ id: string; name: string }>; esca
       if (query.includes('teams {')) return json({ data: { teams: { nodes: [{ id: 'team-eng', key: 'ENG' }, { id: 'team-ops', key: 'OPS' }] } } });
       if (query.includes('users(')) return json({ data: { users: { nodes: members } } });
       if (query.includes('issueCreate')) { assignees.set('lin-1', named(v.i.assigneeId)); return json({ data: { issueCreate: { issue: { id: 'lin-1', identifier: 'OPS-1' } } } }); }
+      if (query.includes('issueDelete')) { deleted.push(v.id); return json({ data: { issueDelete: { success: true } } }); }
       if (query.includes('issueUpdate')) { assignees.set(v.id, named(v.i.assigneeId)); return json({ data: { issueUpdate: { success: true } } }); }
       return json({ data: { issue: { assignee: assignees.get(v.id) ? { name: assignees.get(v.id) } : null } } });
     }
@@ -51,6 +55,7 @@ function fakeApps(options: { members?: Array<{ id: string; name: string }>; esca
       messages.push({ ts, text, thread_ts: body.thread_ts });
       return json({ ok: true, ts });
     }
+    if (url.origin + url.pathname === 'https://slack.com/api/conversations.history') return json({ ok: true, messages: [] });
     if (url.href === 'https://slack.com/api/chat.delete') {
       const index = messages.findIndex(m => m.ts === body.ts);
       if (index >= 0) messages.splice(index, 1);
@@ -65,7 +70,7 @@ function fakeApps(options: { members?: Array<{ id: string; name: string }>; esca
     return json({ ok: false, error: 'unknown_method' });
   }) as unknown as typeof fetch;
   const writes = () => requests.filter(r => (r.url.hostname === 'api.github.com' && r.method !== 'GET') || r.url.pathname === '/api/chat.postMessage' || String(r.body?.query ?? '').startsWith('mutation'));
-  return { fetcher, requests, writes, issues, assignees, messages };
+  return { fetcher, requests, writes, issues, assignees, messages, deleted };
 }
 
 async function connected(apps = fakeApps()) {
@@ -100,6 +105,9 @@ test('connecting recreates the failed run in the configured repo, team and chann
   assert.equal(w.sourceActions[1].before.assignee, 'Jamie Chen');
   assert.ok(apps.requests.some(r => String(r.body?.query).includes('users(filter: { app: { eq: false } })')), 'Linear agents and apps are never chosen as owners');
   assert.equal(w.records[2].external?.channelId, 'C0DEMO01');
+  assert.deepEqual(w.run?.actions.map(a => a.assessment), ['setup', 'expected', 'needs_repair', 'needs_repair', 'needs_repair']);
+  assert.equal(w.run?.actions[1].outcome, 'reported_timeout', 'the first create succeeded although the agent saw a timeout');
+  assert.deepEqual(w.run?.actions.filter(a => a.recordId).map(a => a.recordId), w.records.map(r => r.id));
   assert.equal(apps.requests.some(r => r.url.pathname === '/user/repos' || r.url.pathname === '/api/conversations.create' || String(r.body?.query).includes('teamCreate')), false, 'only existing demo resources are used');
   const auth = (host: string) => apps.requests.find(r => r.url.hostname === host)?.headers.Authorization;
   assert.equal(auth('api.github.com'), 'Bearer github_pat_test');
@@ -168,23 +176,24 @@ test('provider refusals name the cause without echoing response bodies', async (
   // The body Linear returned for a rejected key when probed on September 12, 2026.
   const badKey = fakeApps({ respond: url => url.hostname === 'api.linear.app' ? json({ errors: [{ message: 'Authentication required, not authenticated', extensions: { code: 'AUTHENTICATION_ERROR' } }] }, 401) : undefined });
   await assert.rejects(connectLive(seedWorkspace(), config, badKey.fetcher), { message: 'Linear returned HTTP 401 (AUTHENTICATION_ERROR) while listing teams. Check the token and its permissions.' });
-  const notInvited = fakeApps({ respond: url => url.pathname === '/api/chat.postMessage' ? json({ ok: false, error: 'not_in_channel' }) : undefined });
-  await assert.rejects(connectLive(seedWorkspace(), config, notInvited.fetcher), { message: 'Slack refused chat.postMessage: not_in_channel.' });
+  const notInvited = fakeApps({ respond: url => url.pathname === '/api/conversations.history' ? json({ ok: false, error: 'not_in_channel' }) : undefined });
+  await assert.rejects(connectLive(seedWorkspace(), config, notInvited.fetcher), { message: 'Slack refused conversations.history: not_in_channel.' });
   assert.equal(notInvited.writes().filter(r => r.url.hostname !== 'slack.com').length, 0, 'GitHub and Linear are untouched');
 });
 
-test('a failed setup shows the Linear reason and removes what the attempt created', async () => {
-  const apps = fakeApps({ respond: (_url, body) => String(body?.query).includes('issueCreate')
+test('a failed run shows the Linear reason and removes what it created', async () => {
+  const apps = fakeApps({ respond: (_url, body) => String(body?.query).includes('issueUpdate')
     ? json({ errors: [{ message: 'Argument Validation Error', extensions: { code: 'INVALID_INPUT', userPresentableMessage: 'The assignee is not a member of this team' } }] })
     : undefined });
   const w = seedWorkspace(); const before = structuredClone(w);
   await assert.rejects(connectLive(w, config, apps.fetcher), (error: Error) => {
-    assert.match(error.message, /^Linear rejected the request while creating the issue \(INVALID_INPUT\): The assignee is not a member of this team\. Aftercare removed what this attempt created/);
+    assert.match(error.message, /^Linear rejected the request while updating the issue \(INVALID_INPUT\): The assignee is not a member of this team\. Aftercare removed what this run created/);
     return true;
   });
   assert.deepEqual(w, before, 'the workspace is unchanged');
-  assert.equal(apps.messages.length, 0, 'the Slack message is deleted');
   assert.deepEqual([...apps.issues.values()], ['closed', 'closed'], 'the GitHub issues are closed');
+  assert.deepEqual(apps.deleted, ['lin-1'], 'the Linear handoff issue is deleted');
+  assert.equal(apps.messages.length, 0, 'nothing was posted to Slack');
 });
 
 test('a record not linked to the demo apps is refused instead of being written locally', async () => {
@@ -206,4 +215,31 @@ test('a response that stalls while its body is read is reported as a timeout', a
     assert.equal(error.status, 504);
     return true;
   });
+});
+
+test('the recorder flags only the actions that went wrong', () => {
+  const at = new Date().toISOString();
+  const action = (tool: string, after: Record<string, string>, extra: Partial<RecordedAction> = {}): RecordedAction =>
+    ({ id: `${tool}-${Object.values(after).join('-')}`, at, actor: 'onboarding-agent', app: 'GitHub', tool, summary: tool, outcome: 'succeeded', before: {}, after, assessment: 'expected', ...extra });
+  const title = 'Provision Acme workspace';
+  const clean = assess([
+    action('github.create_issue', { issue: '#1', title }),
+    action('linear.update_assignee', { assignee: 'Jamie Chen' }),
+    action('slack.post_message', { message: 'Acme is ready.' }),
+  ], { owner: 'Jamie Chen' });
+  assert.deepEqual(clean.map(a => a.assessment), ['expected', 'expected', 'expected'], 'a correct run needs no repair');
+  const faulty = assess([
+    action('github.create_issue', { issue: '#1', title }, { outcome: 'reported_timeout' }),
+    action('github.create_issue', { issue: '#2', title }),
+    action('linear.update_assignee', { assignee: 'Alex Rivera' }),
+    action('slack.post_message', { message: 'Acme is ready.' }),
+  ], { owner: 'Jamie Chen' });
+  assert.deepEqual(faulty.map(a => a.assessment), ['expected', 'needs_repair', 'needs_repair', 'needs_repair']);
+  assert.match(faulty[1].finding ?? '', /Repeats #1, which GitHub had already created before the agent was told the call timed out/);
+});
+
+test('the local scenario run matches what the recorder would flag', () => {
+  const run = seedWorkspace().run!;
+  const reassessed = assess(run.actions.map(a => ({ ...a, assessment: a.actor === 'intake' ? 'setup' as const : 'expected' as const, finding: undefined })), { owner: 'Jamie Chen' });
+  assert.deepEqual(reassessed.map(a => [a.assessment, a.finding]), run.actions.map(a => [a.assessment, a.finding]));
 });

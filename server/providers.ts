@@ -1,4 +1,4 @@
-import type { ExternalRef, RecordState, Workspace } from '../shared/types.js';
+import type { ExternalRef, RecordState } from '../shared/types.js';
 import { RecoveryError, type ProviderAdapter } from './recovery.js';
 
 /**
@@ -170,78 +170,4 @@ export function providerAdapter(mode: 'twin' | 'live', locate: Locate): Provider
       throw new RecoveryError(`No write is defined for ${ref.provider}.${field}.`, 422);
     },
   };
-}
-
-/** Existing resources the failed run is recreated in. */
-export interface IncidentTargets {
-  github: { endpoint: Endpoint; owner: string; repo: string };
-  linear: { endpoint: Endpoint; teamId: string };
-  slack: { endpoint: Endpoint; channelId: string };
-}
-
-/**
- * Recreates the failed onboarding run and rebinds the workspace records and action
- * journal to what was actually created. The workspace changes only after every
- * provider call succeeds.
- */
-export async function seedIncident(w: Workspace, t: IncidentTargets) {
-  // Assignments are restored by name, so the two members must be distinguishable by it.
-  const people = (await linear.users(t.linear.endpoint)).filter((p, i, all) => all.findIndex(q => q.name === p.name) === i);
-  // With a single member, the agent's mistake is removing the owner instead of reassigning.
-  const [original, agentChoice] = people;
-  if (!original) throw new RecoveryError(`${t.linear.endpoint.name} returned no members to assign.`, 422);
-  const wrongOwner = agentChoice?.name ?? '';
-
-  const message = agentChoice ? `Acme is ready. Workspace provisioned and handoff assigned to ${agentChoice.name}.` : 'Acme is ready. Workspace provisioned and handoff complete.';
-  const repo = { owner: t.github.owner, repo: t.github.repo };
-  // If a later step fails, undo what this attempt created so a retry starts clean.
-  const undo: Array<() => Promise<unknown>> = [];
-  const attempt = async () => {
-    const ts = await slack.post(t.slack.endpoint, t.slack.channelId, message);
-    undo.push(() => slack.call(t.slack.endpoint, 'chat.delete', { channel: t.slack.channelId, ts }));
-    const slackRef: ExternalRef = { provider: 'slack', channelId: t.slack.channelId, ts };
-    // Recovery reads this thread; confirm that access now rather than at review time.
-    await slack.readCorrection(t.slack.endpoint, slackRef);
-
-    // The REST API cannot delete issues, so an abandoned attempt closes them.
-    const canonical = await github.createIssue(t.github.endpoint, repo, 'Provision Acme workspace', 'Canonical onboarding task for Acme.');
-    undo.push(() => github.writeState(t.github.endpoint, { provider: 'github', ...repo, issueNumber: canonical }, 'closed'));
-    const duplicate = await github.createIssue(t.github.endpoint, repo, 'Provision Acme workspace', `Duplicate created by onboarding-agent. Canonical: #${canonical}.`);
-    undo.push(() => github.writeState(t.github.endpoint, { provider: 'github', ...repo, issueNumber: duplicate }, 'closed'));
-
-    const created = await linear.createIssue(t.linear.endpoint, t.linear.teamId, 'Acme onboarding handoff', original.id);
-    undo.push(() => linear.gql(t.linear.endpoint, 'mutation($id:String!){ issueDelete(id:$id){ success } }', { id: created.id }, 'removing the issue'));
-    const linearRef: ExternalRef = { provider: 'linear', issueId: created.id, teamId: t.linear.teamId };
-    // The agent's mistaken reassignment is the state the repair has to undo.
-    await linear.writeAssignee(t.linear.endpoint, linearRef, wrongOwner);
-    return { slackRef, canonical, duplicate, created, linearRef };
-  };
-  const { slackRef, canonical, duplicate, created, linearRef } = await attempt().catch(async (error: unknown): Promise<never> => {
-    let cleaned = true;
-    for (const step of undo.reverse()) await step().catch(() => { cleaned = false; });
-    if (!undo.length || !(error instanceof RecoveryError)) throw error;
-    const note = cleaned ? 'Aftercare removed what this attempt created; its GitHub issues are closed because they cannot be deleted.' : 'Some records created by this attempt could not be removed.';
-    throw new RecoveryError(`${error.message} ${note}`, error.status);
-  });
-
-  const [gh, lin, sl] = w.records;
-  gh.external = { provider: 'github', ...repo, issueNumber: duplicate };
-  gh.label = `#${duplicate}`;
-  gh.fields = { ...gh.fields, state: 'open', canonicalIssue: `#${canonical}` };
-  lin.external = linearRef;
-  lin.label = created.identifier;
-  lin.fields = { ...lin.fields, assignee: wrongOwner };
-  sl.external = slackRef;
-  sl.fields = { ...sl.fields, message, correction: '' };
-
-  // The journal must describe what the agent actually did in these apps.
-  const journal = (recordId: string, description: string, before: Record<string, string>, after: Record<string, string>) => {
-    const action = w.sourceActions.find(a => a.recordId === recordId);
-    if (action) { action.description = description; action.before = before; action.after = after; action.at = new Date().toISOString(); }
-  };
-  journal(gh.id, `Created issue #${duplicate} for the task already tracked by #${canonical}.`, { canonicalIssue: `#${canonical}` }, { ...gh.fields });
-  journal(lin.id, agentChoice ? `Changed the handoff owner from ${original.name} to ${agentChoice.name}.` : `Removed ${original.name} as the handoff owner.`, { assignee: original.name }, { ...lin.fields });
-  journal(sl.id, 'Reported completion before the onboarding task was verified.', { correction: '' }, { ...sl.fields });
-
-  for (const record of w.records) { record.revision = 1; record.lastActor = 'agent'; }
 }

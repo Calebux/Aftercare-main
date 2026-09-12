@@ -59,10 +59,13 @@ and restart (invite the app to the channel yourself). The names are prefixed so 
 broad `GITHUB_TOKEN` or `SLACK_BOT_TOKEN` in your shell is never used. Scenario-only
 runs, including the test suites, never connect to real apps.
 
-**Recreate the failed run in my apps** checks access with reads, then recreates the
-failed run: an inaccurate Slack message, a canonical and a duplicate GitHub issue, and
-a Linear issue moved from the first listed member to the second, or left unassigned
-when the workspace has one member. After approval, a repair
+**Run onboarding-agent in my apps** checks access with reads, then runs a demonstration
+agent through Aftercare's recorder. Intake creates the Linear handoff issue. The agent
+creates the GitHub issue, but the response is lost, so it retries and creates a
+duplicate. A stale roster makes it reassign the handoff, or remove the owner in a
+one-person workspace, and it then announces completion in Slack. The recorder captures
+every call with the values before and after it, and the **Agent run** tab marks the
+three changes that need repair. After approval, a repair
 closes the duplicate, restores the original assignee, and replies in the Slack thread.
 To test a human edit, change the assignee directly in Linear after reviewing the
 plan. Reset returns to the local scenario; records created in the apps stay there.

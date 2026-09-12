@@ -71,7 +71,7 @@ export async function investigate(w: Workspace, options: { key: string; model?: 
       catch { throw new RecoveryError('The model supplied invalid tool arguments.', 422); }
       let result: unknown;
       switch (call.function.name) {
-        case 'get_run_actions': journalRead = true; result = { incidentId: w.incidentId, source: w.mode === 'live' ? 'seeded demo app action journal' : w.mode === 'twin' ? 'seeded twin action journal' : 'local scenario fixture', actions: w.sourceActions }; options.onTool?.('Read the failed run and its source actions.'); break;
+        case 'get_run_actions': journalRead = true; result = { incidentId: w.incidentId, source: w.mode === 'live' ? 'seeded demo app action journal' : w.mode === 'twin' ? 'seeded twin action journal' : 'local scenario fixture', actions: w.sourceActions, run: w.run && { agent: w.run.agent, task: w.run.task, mode: w.run.mode, actions: w.run.actions.map(({ tool, actor, summary, outcome, assessment, finding }) => ({ tool, actor, summary, outcome, assessment, finding })) } }; options.onTool?.('Read the recorded agent run and its repair journal.'); break;
         case 'read_app_record': {
           const r = w.records.find(r => r.id === args.recordId);
           if (!r) throw new RecoveryError('The model requested a record outside this recovery scope.', 422);

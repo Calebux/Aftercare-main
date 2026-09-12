@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { AuditEvent, RecordState, RepairOperation, RepairPlan, Workspace } from '../shared/types.js';
+import type { AgentRun, AppName, AuditEvent, Fields, RecordState, RecordedAction, RepairOperation, RepairPlan, Workspace } from '../shared/types.js';
 
 export class RecoveryError extends Error {
   constructor(message: string, public status = 409) { super(message); }
@@ -25,6 +25,23 @@ const now = () => new Date().toISOString();
 export function event(w: Workspace, title: string, detail: string, kind: AuditEvent['kind'] = 'info') {
   w.events.push({ id: randomUUID(), at: now(), title, detail, kind });
 }
+/** The local scenario's run, shaped like a recording so every mode shows the same evidence. */
+function simulatedRun(at: string): AgentRun {
+  const title = 'Provision Acme workspace';
+  const message = 'Acme is ready. Workspace provisioned and handoff assigned to Alex.';
+  const action = (id: string, actor: string, app: AppName, tool: string, summary: string, before: Fields, after: Fields, extra: Partial<RecordedAction> = {}): RecordedAction =>
+    ({ id, at, actor, app, tool, summary, outcome: 'succeeded', before, after, assessment: actor === 'intake' ? 'setup' : 'expected', ...extra });
+  return {
+    agent: 'onboarding-agent', task: 'Onboard Acme and hand off to Jamie Chen.', mode: 'simulated', startedAt: at, finishedAt: at,
+    actions: [
+      action('act-01', 'intake', 'Linear', 'linear.create_issue', 'Created OPS-93 “Acme onboarding handoff” for Jamie Chen.', {}, { issue: 'OPS-93', assignee: 'Jamie Chen' }),
+      action('act-02', 'onboarding-agent', 'GitHub', 'github.create_issue', `Created issue #182 “${title}”. The response was lost, so the agent was told the call timed out.`, {}, { issue: '#182', title, state: 'open' }, { outcome: 'reported_timeout' }),
+      action('act-03', 'onboarding-agent', 'GitHub', 'github.create_issue', `Retried and created issue #184 “${title}”.`, {}, { issue: '#184', title, state: 'open' }, { assessment: 'needs_repair', finding: 'Repeats #182, which GitHub had already created before the agent was told the call timed out.', recordId: 'gh-184' }),
+      action('act-04', 'onboarding-agent', 'Linear', 'linear.update_assignee', 'Reassigned OPS-93 to Alex Rivera from a stale roster.', { assignee: 'Jamie Chen' }, { assignee: 'Alex Rivera' }, { assessment: 'needs_repair', finding: 'The task names Jamie Chen as the handoff owner, but the agent set Alex Rivera.', recordId: 'lin-93' }),
+      action('act-05', 'onboarding-agent', 'Slack', 'slack.post_message', `Posted “${message}”`, {}, { message }, { assessment: 'needs_repair', finding: 'Announced completion while 2 other changes still needed repair.', recordId: 'slack-42' }),
+    ],
+  };
+}
 export function seedWorkspace(): Workspace {
   const at = now();
   return {
@@ -39,8 +56,9 @@ export function seedWorkspace(): Workspace {
       { id: 'evt-02', recordId: 'lin-93', at, description: 'Changed the handoff owner from Jamie to Alex.', before: { assignee: 'Jamie Chen' }, after: { assignee: 'Alex Rivera', accountId: 'acme-01' } },
       { id: 'evt-03', recordId: 'slack-42', at, description: 'Reported completion before the onboarding task was verified.', before: { correction: '' }, after: { message: 'Acme is ready. Workspace provisioned and handoff assigned to Alex.', correction: '' } },
     ],
+    run: simulatedRun(at),
     plans: [],
-    events: [{ id: randomUUID(), at, title: 'Failed workflow loaded', detail: 'Three recorded actions from onboarding-agent · run_8f24. Local scenario data.', kind: 'info' }],
+    events: [{ id: randomUUID(), at, title: 'Failed workflow loaded', detail: 'onboarding-agent made 4 changes; 3 need repair. Local scenario data.', kind: 'info' }],
   };
 }
 export function snapshot(w: Workspace) {

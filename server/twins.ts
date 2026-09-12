@@ -2,7 +2,8 @@ import { createSign } from 'node:crypto';
 import type { ProviderName, TwinBinding, Workspace } from '../shared/types.js';
 import { RecoveryError, event, type ProviderAdapter } from './recovery.js';
 import { connect, provisionTwin, twinExpired } from './arga.js';
-import { api, github, linear, need, providerAdapter, seedIncident, slack, type Endpoint } from './providers.js';
+import { api, github, linear, need, providerAdapter, slack, type Endpoint } from './providers.js';
+import { runOnboardingAgent } from './agent.js';
 
 /**
  * Twin tokens are per-provider and optional. Twins ignore a missing Authorization
@@ -115,7 +116,7 @@ export async function seedTwins(w: Workspace, bindings: Bindings, credentials: T
   const repo = await github.createRepo(gh, 'onboarding');
   const teamId = await linear.createTeam(lin);
   const channelId = await slack.createChannel(sl, 'customer-onboarding');
-  await seedIncident(w, { github: { endpoint: gh, ...repo }, linear: { endpoint: lin, teamId }, slack: { endpoint: sl, channelId } });
+  await runOnboardingAgent(w, { github: { endpoint: gh, ...repo }, linear: { endpoint: lin, teamId }, slack: { endpoint: sl, channelId } });
   w.mode = 'twin';
   w.twins = Object.values(bindings).filter(Boolean) as TwinBinding[];
   event(w, 'Twins seeded', `The failed run was recreated in ${w.twins.length} Arga twins. Repairs will write to their real APIs.`, 'success');

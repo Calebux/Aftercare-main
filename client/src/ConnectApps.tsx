@@ -48,7 +48,7 @@ export function ConnectApps({ icon, busy, onCreate }: { icon: (app: AppName) => 
   return <section className="decision-card" style={{ marginBottom: 20 }} aria-labelledby="connect-title">
     <div className="small-label">TRY IT WITH YOUR OWN APPS</div>
     <h3 id="connect-title">Connect GitHub, Linear and Slack.</h3>
-    <p>Aftercare recreates the failed run in a repository, team and channel you choose, then repairs it only after you approve. Use demo resources. Tokens stay on the server for this session and are never shown again.</p>
+    <p>A demonstration agent works in the repository, team and channel you choose. Aftercare records every tool call, flags what went wrong, and repairs it only after you approve. Use demo resources. Tokens stay on the server for this session and are never shown again.</p>
     {error && <div className="notice danger" role="alert" style={{ marginTop: 14 }}><span>{error}</span></div>}
     {apps.map(app => {
       const state = view.apps[app.id];
@@ -81,7 +81,7 @@ export function ConnectApps({ icon, busy, onCreate }: { icon: (app: AppName) => 
               </label>}
       </div>;
     })}
-    <button className="button primary full" style={{ marginTop: 16 }} disabled={!view.ready || !!working || busy} onClick={onCreate}>{busy && <LoaderCircle className="spin" size={14} />}Recreate the failed run in my apps</button>
-    <span className="summary-caption">Creates two GitHub issues, one Linear issue and one Slack message</span>
+    <button className="button primary full" style={{ marginTop: 16 }} disabled={!view.ready || !!working || busy} onClick={onCreate}>{busy && <LoaderCircle className="spin" size={14} />}Run onboarding-agent in my apps</button>
+    <span className="summary-caption">The agent has two injected faults: a lost GitHub response and a stale owner roster</span>
   </section>;
 }

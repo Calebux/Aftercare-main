@@ -1,6 +1,7 @@
 import type { ProviderName, Workspace } from '../shared/types.js';
 import { RecoveryError, event, type ProviderAdapter } from './recovery.js';
-import { github, linear, providerAdapter, seedIncident, type Endpoint } from './providers.js';
+import { github, linear, providerAdapter, type Endpoint } from './providers.js';
+import { runOnboardingAgent } from './agent.js';
 
 /**
  * Live mode repairs real GitHub, Linear and Slack accounts the operator controls.
@@ -51,7 +52,7 @@ export function liveAdapter(config: LiveConfig, fetcher: typeof fetch = fetch): 
   });
 }
 
-/** Checks access to the configured demo resources, then recreates the failed run in them. */
+/** Checks access to the configured demo resources, then runs the recorded demonstration agent in them. */
 export async function connectLive(w: Workspace, config: LiveConfig, fetcher: typeof fetch = fetch) {
   const gh = endpoint(config, 'github', fetcher);
   const lin = endpoint(config, 'linear', fetcher);
@@ -59,11 +60,12 @@ export async function connectLive(w: Workspace, config: LiveConfig, fetcher: typ
   await github.checkRepo(gh, owner, repo);
   const team = (await linear.teams(lin)).find(t => t.key.toUpperCase() === config.linear.teamKey.toUpperCase());
   if (!team) throw new RecoveryError(`Linear has no team with key ${config.linear.teamKey}. Check AFTERCARE_LINEAR_TEAM_KEY.`, 422);
-  await seedIncident(w, {
+  const run = await runOnboardingAgent(w, {
     github: { endpoint: gh, owner, repo },
     linear: { endpoint: lin, teamId: team.id },
     slack: { endpoint: endpoint(config, 'slack', fetcher), channelId: config.slack.channelId },
   });
   w.mode = 'live';
-  event(w, 'Demo apps connected', `The failed run was recreated in ${owner}/${repo}, Linear team ${team.key} and Slack channel ${config.slack.channelId}. Approved repairs will write to these apps.`, 'success');
+  const needsRepair = run.actions.filter(a => a.assessment === 'needs_repair').length;
+  event(w, `${run.agent} finished`, `Recorded ${run.actions.length} actions in ${owner}/${repo}, Linear team ${team.key} and Slack channel ${config.slack.channelId}; ${needsRepair} need repair. Approved repairs will write to these apps.`, needsRepair ? 'warning' : 'success');
 }

@@ -8,7 +8,7 @@ The current source passed these checks on September 12, 2026:
 
 | Check | Result |
 | --- | --- |
-| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 51/51 passed |
+| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 53/53 passed |
 | Browser recovery workflow with desktop and mobile layout checks | 1/1 passed |
 | TypeScript check and production frontend build | Passed |
 
@@ -25,7 +25,7 @@ through their public APIs.
 
 | Check | Observed result |
 | --- | --- |
-| Offline tests against GitHub, Linear and Slack request and response shapes | 15/15 passed (included above) |
+| Offline tests against GitHub, Linear and Slack request and response shapes | 17/17 passed (included above) |
 | Unauthenticated probe of Linear GraphQL | HTTP 401, error code `AUTHENTICATION_ERROR` |
 | Probe of GitHub REST with an invalid token | HTTP 401, `Bad credentials` |
 | Probe of Slack `conversations.replies` over GET with an invalid token | `ok: false`, `invalid_auth` |
@@ -33,6 +33,18 @@ through their public APIs.
 
 The probes confirm hosts, authentication handling, and error shapes only. They used
 no real credentials and made no writes.
+
+### Recorded agent run: September 13, 2026
+
+The incident is now produced by a demonstration agent whose calls pass through
+Aftercare's recorder, instead of being seeded directly. Offline tests cover the
+recorded actions, the checks that flag a repeated create, a wrong owner, and a
+premature announcement, and cleanup when a run fails partway. It has not yet run
+against real accounts; the live cases below used the earlier seeding.
+
+The AI investigator ran against a real model for the first time on September 13,
+2026: `deepseek/deepseek-v4-flash` read the journal and all three records in five
+tool calls and returned a recommendation that passed policy validation.
 
 ### First live run: September 12, 2026
 

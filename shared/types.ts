@@ -57,6 +57,33 @@ export interface TwinBinding {
   expiresAt: string | null;
   error?: string;
 }
+/** One change captured by Aftercare's recorder, with the values before and after it. */
+export interface RecordedAction {
+  id: string;
+  at: string;
+  /** The agent, or `intake` for existing work created before the agent ran. */
+  actor: string;
+  app: AppName;
+  tool: string;
+  summary: string;
+  /** `reported_timeout`: the app accepted the change, but the agent was told the call timed out. */
+  outcome: 'succeeded' | 'reported_timeout';
+  before: Fields;
+  after: Fields;
+  assessment: 'setup' | 'expected' | 'needs_repair';
+  finding?: string;
+  /** The workspace record repaired for this action. */
+  recordId?: string;
+}
+export interface AgentRun {
+  agent: string;
+  task: string;
+  /** `recorded` from real tool calls; `simulated` for the local scenario. */
+  mode: 'recorded' | 'simulated';
+  startedAt: string;
+  finishedAt: string;
+  actions: RecordedAction[];
+}
 export interface AuditEvent { id: string; at: string; title: string; detail: string; kind: 'info' | 'warning' | 'success' }
 export interface Workspace {
   schema: 1;
@@ -68,6 +95,8 @@ export interface Workspace {
   createdAt: string;
   records: RecordState[];
   sourceActions: SourceAction[];
+  /** Every action the agent took, including those that need no repair. */
+  run?: AgentRun;
   plans: RepairPlan[];
   events: AuditEvent[];
   investigation?: {
