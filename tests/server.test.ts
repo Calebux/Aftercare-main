@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -63,6 +63,13 @@ test('HTTP review refreshes twins and rejects conflicting mutations during execu
         if (chunk.toString().includes('Aftercare:')) { clearTimeout(timer); resolve(); }
       });
     });
+    // A page served from another host name (DNS rebinding) must not reach the local server.
+    const rebound = await new Promise<number>((resolve, reject) => {
+      const request = httpRequest({ host: '127.0.0.1', port, method: 'POST', path: '/api/reset', headers: { Host: `attacker.example:${port}`, Origin: `http://attacker.example:${port}`, 'Content-Type': 'application/json' } }, response => { response.resume(); resolve(response.statusCode ?? 0); });
+      request.on('error', reject);
+      request.end('{}');
+    });
+    assert.equal(rebound, 421);
     const preview = await post('prepare'); assert.equal(preview.status, 200);
     const original = (await preview.json()).plans.at(-1);
     assignee = 'Human choice';

@@ -14,10 +14,16 @@ if (existsSync('.env')) process.loadEnvFile('.env');
 const app = express();
 const port = Number(process.env.PORT || 4310);
 const scenarioOnly = process.env.AFTERCARE_SCENARIO_ONLY === '1';
-const modelEnabled = Boolean(process.env.OPENROUTER_API_KEY) && !scenarioOnly;
 const publicUrl = process.env.AFTERCARE_PUBLIC_URL?.replace(/\/$/, '');
 // A public URL means visitors besides the operator: separate workspaces, and only their own apps.
 const hosted = Boolean(publicUrl);
+if (hosted && process.env.NODE_ENV !== 'production') {
+  // The development server includes Vite's dev middleware, which must never be publicly reachable.
+  console.error('AFTERCARE_PUBLIC_URL requires the production build: run npm run build, then npm start.');
+  process.exit(1);
+}
+// On a hosted instance every visitor's investigation would spend the operator's model key.
+const modelEnabled = Boolean(process.env.OPENROUTER_API_KEY) && !scenarioOnly && (!hosted || process.env.AFTERCARE_HOSTED_AI === '1');
 // Scenario-only runs, including tests, never reach real apps whatever .env contains.
 const connectionsEnabled = !scenarioOnly;
 const operatorLive = connectionsEnabled && !hosted ? readLiveConfig().config : undefined;
@@ -32,6 +38,20 @@ const sessions = createSessions({
   operatorConnections: operatorLive ? connectionsFromEnv(operatorLive) : {},
 });
 
+// Only requests addressed to this server by name are served, which defeats DNS rebinding.
+const allowedHosts = new Set([
+  ...(publicUrl ? [new URL(publicUrl).host] : [`127.0.0.1:${port}`, `localhost:${port}`]),
+  ...(process.env.AFTERCARE_ALLOWED_HOSTS ?? '').split(','),
+].map(h => h.trim().toLowerCase()).filter(Boolean));
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  if (!allowedHosts.has((req.get('host') ?? '').toLowerCase())) { res.status(421).type('text/plain').send('This server does not answer for that host name.'); return; }
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
 app.use(express.json({ limit: '32kb' }));
 app.use('/api', (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -53,7 +73,7 @@ function fail(res: Response, error: unknown, slot?: Slot) {
 async function withSlot(req: Request, res: Response, run: (slot: Slot) => unknown) {
   let slot: Slot | undefined;
   try { slot = sessions.resolve(req, res); await run(slot); }
-  catch (error) { slot?.persist(); fail(res, error, slot); }
+  catch (error) { if (req.method !== 'GET') slot?.persist(); fail(res, error, slot); }
 }
 /** Remote bindings must stay usable; twin and live recoveries never fall back to local writes. */
 function adapterFor(slot: Slot) {

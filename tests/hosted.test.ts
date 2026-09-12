@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -19,7 +19,7 @@ test('a hosted instance gives each visitor a separate workspace and never shares
   const child = spawn(process.execPath, ['--import', 'tsx', 'server/index.ts'], {
     cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'],
     env: {
-      ...process.env, PORT: String(port), HOST: '127.0.0.1', NODE_ENV: 'production', AFTERCARE_DATA_DIR: dir, AFTERCARE_PUBLIC_URL: base, OPENROUTER_API_KEY: '',
+      ...process.env, PORT: String(port), HOST: '127.0.0.1', NODE_ENV: 'production', AFTERCARE_DATA_DIR: dir, AFTERCARE_PUBLIC_URL: base, OPENROUTER_API_KEY: 'sk-or-v1-not-a-real-key',
       AFTERCARE_GITHUB_TOKEN: 'operator-secret', AFTERCARE_GITHUB_REPO: 'operator/repo', AFTERCARE_LINEAR_API_KEY: 'operator-secret',
       AFTERCARE_LINEAR_TEAM_KEY: 'OPS', AFTERCARE_SLACK_BOT_TOKEN: 'xoxb-operator-secret', AFTERCARE_SLACK_CHANNEL_ID: 'C0OPERATOR',
     },
@@ -58,6 +58,7 @@ test('a hosted instance gives each visitor a separate workspace and never shares
     assert.equal(config.hosted, true);
     assert.equal(config.connections, 'enabled');
     assert.equal(config.twins, 'unconfigured', 'visitors cannot spend the operator Arga runs');
+    assert.equal(config.investigator, 'scenario', 'visitors cannot spend the operator model key');
     const connections = await (await b.send('/api/connections')).text();
     assert.doesNotMatch(connections, /operator/);
     assert.equal(JSON.parse(connections).apps.github.connected, false, 'operator tokens are never inherited');
@@ -68,8 +69,36 @@ test('a hosted instance gives each visitor a separate workspace and never shares
     const planted = await fetch(`${base}/api/workspace`, { headers: { Cookie: `aftercare_session=${'A'.repeat(43)}` } });
     assert.match(planted.headers.get('set-cookie') ?? '', /^aftercare_session=/, 'an unknown session id is replaced');
     assert.doesNotMatch(planted.headers.get('set-cookie') ?? '', /A{43}/);
+
+    const headers = (await b.send('/api/config')).headers;
+    assert.equal(headers.get('x-frame-options'), 'DENY');
+    assert.equal(headers.get('x-powered-by'), null);
+    const filesBefore = (await readdir(join(dir, 'sessions'))).length;
+    for (let i = 0; i < 20; i++) await fetch(`${base}/api/workspace`);
+    assert.equal((await readdir(join(dir, 'sessions'))).length, filesBefore, 'requests that change nothing write no files');
+    const misdirected = await new Promise<number>((resolve, reject) => {
+      const request = httpRequest({ host: '127.0.0.1', port, path: '/api/workspace', headers: { Host: `attacker.example:${port}` } }, response => { response.resume(); resolve(response.statusCode ?? 0); });
+      request.on('error', reject);
+      request.end();
+    });
+    assert.equal(misdirected, 421, 'a request for another host name is refused');
   } finally {
     child.kill(); await exited;
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('a public URL refuses to start the development server', { timeout: 20_000 }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'aftercare-dev-'));
+  try {
+    const child = spawn(process.execPath, ['--import', 'tsx', 'server/index.ts'], {
+      cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, NODE_ENV: 'development', PORT: '0', AFTERCARE_DATA_DIR: dir, AFTERCARE_PUBLIC_URL: 'https://aftercare.example' },
+    });
+    let stderr = '';
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    const [code] = await once(child, 'exit');
+    assert.equal(code, 1);
+    assert.match(stderr, /requires the production build/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });

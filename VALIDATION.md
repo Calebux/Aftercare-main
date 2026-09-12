@@ -8,7 +8,7 @@ The current source passed these checks on September 12, 2026:
 
 | Check | Result |
 | --- | --- |
-| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 48/48 passed |
+| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 51/51 passed |
 | Browser recovery workflow with desktop and mobile layout checks | 1/1 passed |
 | TypeScript check and production frontend build | Passed |
 
@@ -63,6 +63,23 @@ Problems found and resolved during the run:
    user-facing message.
 5. A GitHub response that stalled after its headers arrived produced a generic server
    error. Stalled body reads now report that the app stopped responding.
+
+## Security review: September 12, 2026
+
+A manual review of the live and hosted changes. Each finding was reproduced before it
+was fixed, and `npm audit` reported no known dependency vulnerabilities.
+
+| Finding | Reproduction | Fix |
+| --- | --- | --- |
+| The local server trusted any Host header (DNS rebinding) | A request naming `attacker.example` passed the write check and read the workspace | Only loopback names, or the public host when hosted, are served; others get HTTP 421 |
+| Hosted visitors could fill the disk | 251 requests without a cookie created 251 workspace files | Files are written only after a change; expired files are removed and at most 200 kept |
+| A public URL exposed the development server | `AFTERCARE_PUBLIC_URL` under `npm run dev` listened on all interfaces with Vite middleware | Hosted mode refuses to start without the production build |
+| Pages could be framed (clickjacking) | No framing headers on the page or API | `X-Frame-Options: DENY`, `frame-ancestors 'none'`, and `nosniff`; `X-Powered-By` removed |
+| Hosted visitors could spend the operator's model key | Investigation ran whenever a key was set | Off on hosted instances unless `AFTERCARE_HOSTED_AI=1` |
+
+Confirmed not vulnerable: tokens never reach the browser or disk, cross-origin writes
+and planted session cookies are refused, provider hosts are fixed, selections are
+checked against what each app listed, and the client has no raw HTML or eval sinks.
 
 ## Live Arga attempt: blocked before provisioning
 

@@ -89,6 +89,11 @@ With a public URL, Aftercare:
 - ignores the operator's `AFTERCARE_*` tokens and Arga configuration, so visitors
   reach only the apps they connect themselves;
 - keeps visitors' tokens in server memory only, so a restart asks them to reconnect;
+- turns AI investigation off unless `AFTERCARE_HOSTED_AI=1`, so visitors cannot spend
+  the operator's OpenRouter key by default;
+- refuses to start without the production build, and answers only requests addressed
+  to the public host name (add others, such as a health check host, to
+  `AFTERCARE_ALLOWED_HOSTS`);
 - listens on `0.0.0.0` and `PORT` unless `HOST` is set.
 
 Each visitor needs their own GitHub token, Linear key, and Slack bot token, created as
@@ -96,9 +101,9 @@ described above. The Slack app must be one they create in their own workspace: S
 limits thread reads to one per minute for apps installed in other workspaces outside
 its Marketplace, and the repair's checks read the thread more often than that.
 
-There are no accounts or sign-in, and at most 200 sessions stay active. Anyone with
-the link can run investigations on the operator's OpenRouter key, so leave
-`OPENROUTER_API_KEY` unset when hosting or use a key with a spending limit.
+There are no accounts or sign-in, and at most 200 sessions stay active. If you set
+`AFTERCARE_HOSTED_AI=1`, anyone with the link can run investigations on your
+OpenRouter key, so use a key with a spending limit.
 
 ## Arga twins
 
