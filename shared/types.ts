@@ -1,7 +1,7 @@
 export type AppName = 'GitHub' | 'Linear' | 'Slack';
 export type ProviderName = 'github' | 'linear' | 'slack';
 export type Fields = Record<string, string>;
-/** Identifies a record inside a provisioned twin. Absent in local scenario mode. */
+/** Identifies a record in a twin or live app. Absent in local scenario mode. */
 export interface ExternalRef {
   provider: ProviderName;
   owner?: string; repo?: string; issueNumber?: number;   // GitHub
@@ -60,7 +60,7 @@ export interface TwinBinding {
 export interface AuditEvent { id: string; at: string; title: string; detail: string; kind: 'info' | 'warning' | 'success' }
 export interface Workspace {
   schema: 1;
-  mode: 'local' | 'twin';
+  mode: 'local' | 'twin' | 'live';
   twins?: TwinBinding[];
   /** Minted per run and server-side only; stripped before the workspace is served. */
   twinTokens?: Partial<Record<ProviderName, string>>;

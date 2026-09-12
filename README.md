@@ -37,8 +37,72 @@ verified until a local key is supplied; automated model tests use stub responses
 
 Without a key the UI uses explicitly labeled scenario rules.
 
+## Live demo apps
+
+Aftercare can repair real GitHub, Linear, and Slack records in free accounts you
+control. Use dedicated demo resources: every connection creates records in them.
+
+1. **GitHub:** create a repository such as `aftercare-demo`. Create a fine-grained
+   personal access token limited to that repository with **Issues: Read and write**.
+2. **Linear:** in a free workspace, create a personal API key in Linear's settings.
+   A workspace with a single member works; the demo then removes the assignee
+   instead of changing it.
+3. **Slack:** in a free workspace, create an app at https://api.slack.com/apps with
+   the bot scopes `chat:write`, `channels:read`, `channels:join`, and
+   `channels:history`, install it, and copy the `xoxb-` bot token. Create a public
+   channel such as `#customer-onboarding`.
+
+Paste each token into **Connect your apps** and choose a repository, team, and
+channel; Aftercare joins the channel for you. On your own machine you can instead
+set the six `AFTERCARE_*` values from `.env.example` in the ignored local `.env`
+and restart (invite the app to the channel yourself). The names are prefixed so a
+broad `GITHUB_TOKEN` or `SLACK_BOT_TOKEN` in your shell is never used. Scenario-only
+runs, including the test suites, never connect to real apps.
+
+**Recreate the failed run in my apps** checks access with reads, then recreates the
+failed run: an inaccurate Slack message, a canonical and a duplicate GitHub issue, and
+a Linear issue moved from the first listed member to the second, or left unassigned
+when the workspace has one member. After approval, a repair
+closes the duplicate, restores the original assignee, and replies in the Slack thread.
+To test a human edit, change the assignee directly in Linear after reviewing the
+plan. Reset returns to the local scenario; records created in the apps stay there.
+
+Repairs use the same pre-write checks, journal, and read-back verification as twins,
+without atomic protection against an edit between a read and a write. A full live repair
+passed against real GitHub, Linear, and Slack accounts on September 12, 2026; see
+[VALIDATION.md](VALIDATION.md).
+
+## Let others try it
+
+Set `AFTERCARE_PUBLIC_URL` to the address people will open, for example
+`https://aftercare.example.com`, then build and start:
+
+```sh
+npm ci && npm run build
+npm start
+```
+
+With a public URL, Aftercare:
+
+- gives every visitor a separate workspace, tied to a session cookie that expires
+  after 12 idle hours;
+- ignores the operator's `AFTERCARE_*` tokens and Arga configuration, so visitors
+  reach only the apps they connect themselves;
+- keeps visitors' tokens in server memory only, so a restart asks them to reconnect;
+- listens on `0.0.0.0` and `PORT` unless `HOST` is set.
+
+Each visitor needs their own GitHub token, Linear key, and Slack bot token, created as
+described above. The Slack app must be one they create in their own workspace: Slack
+limits thread reads to one per minute for apps installed in other workspaces outside
+its Marketplace, and the repair's checks read the thread more often than that.
+
+There are no accounts or sign-in, and at most 200 sessions stay active. Anyone with
+the link can run investigations on the operator's OpenRouter key, so leave
+`OPENROUTER_API_KEY` unset when hosting or use a key with a spending limit.
+
 ## Arga twins
 
+Arga twins are optional and need available Arga validation runs; live demo apps do not.
 Repairs can execute against provisioned Arga twins instead of the local scenario.
 Provider tokens can be supplied through `ARGA_GITHUB_TOKEN`,
 `ARGA_LINEAR_TOKEN`, and `ARGA_SLACK_TOKEN` in the ignored local `.env`. The code
@@ -47,7 +111,7 @@ has only been tested offline. The MCP endpoint and credential are
 read from `ARGA_MCP_URL`/`ARGA_MCP_AUTHORIZATION`, falling back to the `arga-context`
 entry in the operator's local Codex configuration. No secret belongs in this repository.
 
-With the MCP credential configured, the UI offers **Provision twins**, which requests one
+With the MCP credential configured and live demo apps not configured, the UI offers **Provision twins**, which requests one
 run per provider, recreates the failed onboarding inside them, and rebinds the
 workspace records to what was actually created. Preparation and approval refresh
 the affected twin fields before review or approval. Execution rechecks all affected records before each write and verifies
@@ -63,15 +127,15 @@ refuses writes rather than falling back to the simulation.
 
 ## Current limits
 
-Without twins, GitHub, Linear, and Slack records are local simulations. There is no
-production identity, authorization, multi-user database, or live-provider concurrency
-enforcement. The server binds to localhost and should remain local during this phase.
+Unless demo apps or twins are connected, GitHub, Linear, and Slack records are local
+simulations. There is no production identity, authorization, multi-user database, or
+live-provider concurrency enforcement. The server binds to localhost and should remain
+local during this phase.
 
-The current live acceptance attempt is blocked: on September 9, 2026, Arga’s
-provisioning API reported zero validation runs remaining. MCP provisioning also
-returned an internal session error. No twin run was returned during this attempt.
-The provider adapters and GitHub credential handshake remain unverified against
-live twins. See [VALIDATION.md](VALIDATION.md) for the exact results and remaining
+Four of five live acceptance cases have passed against real accounts. The
+earlier Arga attempt on September 9, 2026 was blocked when Arga’s provisioning API
+reported zero validation runs remaining and MCP provisioning returned an internal
+session error. See [VALIDATION.md](VALIDATION.md) for the exact results and remaining
 acceptance cases.
 
 ## Verify
@@ -85,6 +149,7 @@ npm run test:ui
 
 Tests exercise stale approvals, human edits between provider writes, transport
 failures after accepted writes, concurrent requests, refreshed twin approvals,
+GitHub, Linear, and Slack API request shapes,
 missing evidence, and the complete browser recovery workflow. Failed writes remain
 available for reconciliation without restarting the server; conflicting workspace
 mutations are rejected while a request is running. These establish local

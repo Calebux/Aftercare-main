@@ -23,12 +23,12 @@ function fakeTwins(state = { issueState: 'open', assignee: 'Alex Rivera', replie
     }
     if (href.includes('linear.twin.test')) {
       const query: string = body.query;
-      if (query.includes('users {')) return json({ data: { users: { nodes: [{ id: 'u1', name: 'Jamie Chen' }, { id: 'u2', name: 'Alex Rivera' }] } } });
+      if (query.includes('users(')) return json({ data: { users: { nodes: [{ id: 'u1', name: 'Jamie Chen' }, { id: 'u2', name: 'Alex Rivera' }] } } });
       if (query.includes('issueUpdate')) { state.assignee = body.variables.i.assigneeId === 'u1' ? 'Jamie Chen' : 'Alex Rivera'; return json({ data: { issueUpdate: { success: true } } }); }
       return json({ data: { issue: { assignee: { name: state.assignee } } } });
     }
     if (href.endsWith('/api/chat.postMessage')) { state.replies.push(body.text); return json({ ok: true, ts: `ts-${state.replies.length}` }); }
-    if (href.endsWith('/api/conversations.replies')) {
+    if (new URL(href).pathname === '/api/conversations.replies') {
       return json({ ok: true, messages: [{ ts: 'ts-original', text: 'Acme is ready.' }, ...state.replies.map((text, i) => ({ ts: `ts-${i + 1}`, text }))] });
     }
     return json({ ok: false, error: 'unexpected' });

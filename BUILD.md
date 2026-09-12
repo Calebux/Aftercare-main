@@ -2,15 +2,16 @@
 
 Status: local recovery implementation complete, including refreshed twin reviews,
 per-write checks, request concurrency guards, durable interruption reconciliation,
-and receipt export. OpenRouter investigation and twin adapters are implemented;
-live model inference and the full twin recovery workflow remain unverified.
+and receipt export. OpenRouter investigation, twin adapters, and live demo-app
+adapters are implemented, and a full repair has passed against real apps; live model
+inference remains unverified.
 
-Validation: 32 automated tests and one browser workflow passed, including
+Validation: 48 automated tests and one browser workflow passed, including
 HTTP route concurrency coverage and desktop/mobile checks. TypeScript checking
-and the production frontend build passed. The latest live acceptance attempt
-on September 9, 2026 was blocked by Arga account quota (zero runs remaining), with
-an additional internal error from MCP provisioning. No run was returned during
-this attempt. See [VALIDATION.md](VALIDATION.md) for the acceptance record.
+and the production frontend build passed. Arga twin provisioning was blocked on
+September 9, 2026 by account quota; the project is not buying more runs and now
+targets free GitHub, Linear, and Slack demo accounts directly. Live cases 1–4
+passed on September 12, 2026. See [VALIDATION.md](VALIDATION.md) for the acceptance record.
 
 ## Product decision
 
@@ -130,6 +131,18 @@ integrations fulfill the hackathon's three-external-app requirement.
   implementation and claimed capabilities have not been validated.
 
 ## Remaining setup
+
+### Live demo apps (current path)
+
+Arga's free validation runs are exhausted and the project will not pay for more, so
+recovery targets free GitHub, Linear, and Slack demo accounts through their public
+APIs. `server/providers.ts` holds the API clients shared by twins and live mode;
+`server/live.ts` reads the prefixed configuration and recreates the failed run in an
+existing repository, team, and channel. `server/connections.ts` and
+`server/sessions.ts` let visitors to a hosted instance connect their own accounts in
+separate workspaces. Setup steps are in the README. A full repair across all three
+real apps passed on September 12, 2026; the human-edit and
+interruption cases in VALIDATION.md passed as well.
 
 ### Arga MCP
 

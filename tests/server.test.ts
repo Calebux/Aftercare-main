@@ -25,7 +25,7 @@ test('HTTP review refreshes twins and rejects conflicting mutations during execu
     if (req.url === '/graphql') {
       assert.ok(!body.query.includes('issueUpdate'), 'the held human assignment must not be written');
       result = { data: { issue: { assignee: { name: assignee } } } };
-    } else if (req.url === '/api/conversations.replies') {
+    } else if (req.url?.split('?')[0] === '/api/conversations.replies') {
       result = { ok: true, messages: [{ ts: 'original', text: 'Acme is ready.' }, ...replies.map((text, i) => ({ ts: `reply-${i}`, text }))] };
     } else if (req.url === '/api/chat.postMessage') {
       replies.push(body.text); result = { ok: true, ts: `reply-${replies.length - 1}` };
@@ -75,7 +75,7 @@ test('HTTP review refreshes twins and rejects conflicting mutations during execu
     const executing = post('execute', { planId: revised.id });
     await started;
     try {
-      for (const action of ['execute', 'reset', 'prepare', 'approve', 'human-edit', 'provision-twins']) {
+      for (const action of ['execute', 'reset', 'prepare', 'approve', 'human-edit', 'provision-twins', 'connect-live']) {
         const rejected = await post(action, { planId: revised.id });
         assert.equal(rejected.status, 409, action);
         assert.match((await rejected.json()).error, /Wait for execute/);
@@ -91,6 +91,9 @@ test('HTTP review refreshes twins and rejects conflicting mutations during execu
     assert.equal(replies.length, 1);
     assert.match(replies[0], /Human choice/);
     assert.equal((await post('reset')).status, 200, 'the mutation gate must release after completion');
+    const config = await (await fetch(`${base}/api/config`)).json();
+    assert.equal(config.connections, 'disabled', 'scenario-only runs never enable writes to real apps');
+    assert.equal((await post('connect-live')).status, 409);
   } finally {
     releaseWrite(); child.kill(); await exited;
     provider.closeAllConnections(); await new Promise<void>(resolve => provider.close(() => resolve()));

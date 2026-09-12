@@ -6,11 +6,11 @@ export class RecoveryError extends Error {
 }
 
 /**
- * The repair engine reads and writes app state only through this interface, so
- * the local scenario and a provisioned twin are interchangeable at execution time.
+ * The repair engine reads and writes app state only through this interface, so the
+ * local scenario, a provisioned twin and live demo apps are interchangeable at execution time.
  */
 export interface ProviderAdapter {
-  readonly mode: 'local' | 'twin';
+  readonly mode: Workspace['mode'];
   /** The value the provider currently reports, used for staleness and read-back checks. */
   read(record: RecordState, field: string): Promise<string>;
   write(record: RecordState, field: string, value: string): Promise<void>;
@@ -122,7 +122,7 @@ export function prepare(w: Workspace): RepairPlan {
   return plan;
 }
 export function humanEdit(w: Workspace) {
-  if (w.mode === 'twin') throw new RecoveryError('Make the assignment change in the Linear twin, then review an updated plan.');
+  if (w.mode !== 'local') throw new RecoveryError(`Make the assignment change in ${w.mode === 'live' ? 'Linear' : 'the Linear twin'}, then review an updated plan.`);
   const r = w.records.find(r => r.app === 'Linear')!;
   r.fields.assignee = r.fields.assignee === 'Morgan Lee' ? 'Sam Taylor' : 'Morgan Lee';
   r.revision++; r.lastActor = 'human';
@@ -148,7 +148,7 @@ export function approve(w: Workspace, planId: string) {
  * Applies an approved plan through `adapter`, journaling intent before each write
  * and verifying it by reading the provider back. Every check that decides whether
  * a write may proceed reads the provider, not the local mirror, so an out-of-band
- * change in a twin stops execution the same way a local edit does.
+ * change in a twin or live app stops execution the same way a local edit does.
  */
 export async function execute(w: Workspace, planId: string, persist: () => void, options: { adapter?: ProviderAdapter; interruptAfterWrite?: boolean } = {}) {
   const { adapter = localAdapter, interruptAfterWrite = false } = options;
@@ -165,7 +165,7 @@ export async function execute(w: Workspace, planId: string, persist: () => void,
       const r = w.records.find(r => r.id === op.recordId)!;
       const current = await adapter.read(r, op.field);
       const mirrored = r.fields[op.field] === op.proposed && r.lastActor === 'aftercare' && r.revision === op.expectedRevision + 1;
-      const acceptedRemotely = adapter.mode === 'twin' && current === op.proposed && r.revision === op.expectedRevision;
+      const acceptedRemotely = adapter.mode !== 'local' && current === op.proposed && r.revision === op.expectedRevision;
       if (current === op.proposed && (mirrored || acceptedRemotely)) {
         if (acceptedRemotely) { r.fields[op.field] = op.proposed; r.revision = op.expectedRevision + 1; r.lastActor = 'aftercare'; }
         op.status = 'verified';
