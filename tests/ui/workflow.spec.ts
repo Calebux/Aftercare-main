@@ -3,6 +3,9 @@ test('operator rejects stale plan, preserves human work, and reconciles interrup
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   await request.post('/api/reset', { data: {} });
   await page.goto('/');
+  await expect(page.getByRole('dialog', { name: /When an AI agent makes a mess/ })).toBeVisible();
+  await page.getByRole('button', { name: 'See it on sample data' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: /Prepare repair plan/ }).click();
   await expect(page.getByRole('button', { name: 'Approve 3 changes' })).toBeVisible();
   await page.getByRole('button', { name: 'Simulate a human edit' }).click();

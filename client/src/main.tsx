@@ -4,6 +4,9 @@ import { Activity, ArrowDown, ArrowRight, ArrowUpRight, Check, CheckCheck, Chevr
 import type { AppName, RepairOperation, Workspace } from '../../shared/types';
 import { ConnectApps } from './ConnectApps';
 import { AgentRunView } from './AgentRun';
+import { Welcome } from './Welcome';
+
+const WELCOME_SEEN = 'aftercare.welcome.seen';
 import './styles.css';
 
 function AppIcon({ app, small = false }: { app: AppName; small?: boolean }) {
@@ -17,6 +20,9 @@ function App() {
   const [evidence, setEvidence] = useState<RepairOperation>();
   const [interrupt, setInterrupt] = useState(false);
   const [showReset, setShowReset] = useState(false);
+  // Shown on a first visit; storage can be unavailable, in which case it simply shows again.
+  const [showWelcome, setShowWelcome] = useState(() => { try { return localStorage.getItem(WELCOME_SEEN) !== '1'; } catch { return true; } });
+  const dismissWelcome = () => { setShowWelcome(false); try { localStorage.setItem(WELCOME_SEEN, '1'); } catch { /* storage unavailable */ } };
   const [config, setConfig] = useState({ investigator: 'scenario', model: '', twins: 'unconfigured', connections: 'disabled', hosted: false, mode: 'local' });
   useEffect(() => { fetch('/api/workspace').then(r => { if (!r.ok) throw new Error('Cannot load workspace.'); return r.json(); }).then(setW).catch(e => setError(e.message)); }, []);
   useEffect(() => { fetch('/api/config').then(r => r.json()).then(setConfig).catch(() => {}); }, []);
@@ -25,9 +31,9 @@ function App() {
     const timer = setInterval(() => { fetch('/api/workspace').then(r => r.json()).then(setW).catch(() => {}); }, 1500);
     return () => clearInterval(timer);
   }, [busy]);
-  useEffect(() => { const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') { setEvidence(undefined); setShowReset(false); } }; window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn); }, []);
+  useEffect(() => { const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') { setEvidence(undefined); setShowReset(false); dismissWelcome(); } }; window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn); }, []);
   useEffect(() => {
-    if (!evidence && !showReset) return;
+    if (!evidence && !showReset && !showWelcome) return;
     const previous = document.activeElement as HTMLElement;
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
     const trap = (e: KeyboardEvent) => {
@@ -39,7 +45,7 @@ function App() {
     };
     document.addEventListener('keydown', trap);
     return () => { document.removeEventListener('keydown', trap); previous?.focus(); };
-  }, [evidence, showReset]);
+  }, [evidence, showReset, showWelcome]);
   async function action(name: string, extra = {}) {
     setBusy(name); setError('');
     try {
@@ -91,7 +97,7 @@ function App() {
       </div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div><span>Recoveries</span><ChevronRight size={13} /><strong>REC-024</strong></div><span className="top-status"><span />Development workspace</span></header>
+      <header className="topbar"><div><span>Recoveries</span><ChevronRight size={13} /><strong>REC-024</strong></div><div><button className="button subtle" onClick={() => setShowWelcome(true)}>How it works</button><span className="top-status"><span />Development workspace</span></div></header>
       <main>
         <div className="eyebrow"><span className="tiny-square" />AGENT RECOVERY<span className="mono">/ 024</span></div>
         <div className="page-heading"><div><h1>A clean handoff.<br /><span>Even after a messy run.</span></h1><p>Review the impact. Preserve the good work. Repair the rest.</p></div><button className="button subtle" onClick={() => setShowReset(true)} disabled={!!busy}><RotateCcw size={14} />Reset scenario</button></div>
@@ -136,6 +142,20 @@ function App() {
       </main>
     </div>
     {evidence && w && <div className="drawer-backdrop" onClick={() => setEvidence(undefined)}><section className="evidence-drawer" role="dialog" aria-modal="true" aria-label="Source evidence" onClick={e => e.stopPropagation()}><div className="drawer-heading"><div className="small-label">SOURCE EVIDENCE</div><button autoFocus aria-label="Close evidence" onClick={() => setEvidence(undefined)}><PanelRightClose size={19} /></button></div><AppIcon app={evidence.app} /><h2>{evidence.title}</h2><p>{evidence.reason}</p><div className="evidence-origin"><ShieldCheck size={15} />{liveMode ? 'Journal recorded while recreating the run in your demo apps · not production telemetry' : 'Recorded local fixture · not production telemetry'}</div><h3>Recorded agent action</h3><p>{w.sourceActions.find(a => a.id === evidence.evidenceId)?.description}</p><pre>{JSON.stringify(w.sourceActions.find(a => a.id === evidence.evidenceId), null, 2)}</pre><h3>Current app record</h3><pre>{JSON.stringify(w.records.find(r => r.id === evidence.recordId), null, 2)}</pre><div className="drawer-warning">These source records are seeded scenario evidence. A live integration must corroborate provenance before recommending a repair.</div></section></div>}
+    {showWelcome && <Welcome
+      connectionsEnabled={config.connections === 'enabled'}
+      onClose={dismissWelcome}
+      onSample={() => {
+        dismissWelcome();
+        if (w && w.mode !== 'local') setError('This workspace is linked to real apps. Reset the scenario to return to sample data.');
+        else setTab('repair');
+      }}
+      onOwnApps={() => {
+        dismissWelcome();
+        if (!w || w.mode !== 'local' || w.plans.length) { setError('Reset the scenario to connect your own apps.'); return; }
+        requestAnimationFrame(() => document.getElementById('connect-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      }}
+    />}
     {showReset && <div className="modal-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="reset-title" className="reset-modal"><RotateCcw size={24} /><h2 id="reset-title">Start a fresh scenario?</h2><p>This replaces the local records, repair plans, and activity history.{liveMode ? ' Issues and messages already created in your demo apps stay there.' : ''} Export your receipt first if you want to keep it.</p><div><button autoFocus className="button outline" onClick={() => setShowReset(false)}>Keep current recovery</button><button className="button primary" onClick={() => { setShowReset(false); setTab('repair'); setInterrupt(false); action('reset'); }}>Reset scenario</button></div></section></div>}
   </div>;
 }
