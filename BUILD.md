@@ -3,8 +3,8 @@
 Status: local recovery implementation complete, including refreshed twin reviews,
 per-write checks, request concurrency guards, durable interruption reconciliation,
 and receipt export. OpenRouter investigation, twin adapters, and live demo-app
-adapters are implemented, and a full repair has passed against real apps; live model
-inference remains unverified.
+adapters are implemented, and a full repair has passed against real apps. The recorded
+agent, Slack alert, and AI investigation have also run against real apps.
 
 Validation: 59 automated tests, one browser workflow, and 450 seeded evaluation trials passed, including
 HTTP route concurrency coverage and desktop/mobile checks. TypeScript checking

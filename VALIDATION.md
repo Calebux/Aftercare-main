@@ -40,13 +40,27 @@ no real credentials and made no writes.
 The incident is now produced by a demonstration agent whose calls pass through
 Aftercare's recorder, instead of being seeded directly. Offline tests cover the
 recorded actions, the checks that flag a repeated create, a wrong owner, and a
-premature announcement, and cleanup when a run fails partway. It has not yet run
-against real accounts; the live cases below used the earlier seeding. The live run view
-and Slack alert added the same day are also untested against real accounts.
+premature announcement, and cleanup when a run fails partway. Its first live run,
+with the live view, the Slack alert, and AI investigation, is recorded below.
 
 The AI investigator ran against a real model for the first time on September 13,
 2026: `deepseek/deepseek-v4-flash` read the journal and all three records in five
 tool calls and returned a recommendation that passed policy validation.
+
+### Live run of the recorded agent: September 13, 2026
+
+A local instance with AI investigation on (`deepseek/deepseek-v4-flash`), using the operator's
+GitHub, Linear, and Slack tokens pasted into **Connect your apps**.
+
+| Check | Observed result |
+| --- | --- |
+| Recorded run | 5 actions: intake created AFT-9 for its owner; the agent created #23 and was told the call timed out, retried and created #24, removed AFT-9's owner, and announced completion |
+| Assessment | #24, the owner removal, and the announcement flagged as needing repair; #23 marked correct |
+| Slack alert | Sent to the channel when the run finished |
+| AI investigation | 5 tool calls; the recommendation passed policy validation |
+| Repair v1 | Approved and applied; all three operations verified by read-back |
+| GitHub, checked independently through the public API | #23 open; #24 closed at 14:06:31 UTC, with a single close event |
+| Linear and Slack | Verified by Aftercare's read-back; the operator reported that the run worked |
 
 ### First live run: September 12, 2026
 
