@@ -72,3 +72,18 @@ test('sample evidence changes the available repair and escalation survives reloa
   expect(receipt.plan).toBeUndefined();
   await page.screenshot({ path: 'test-results/escalation.png', fullPage: true });
 });
+
+test('a second incident type loads from the picker and plans its own repairs', async ({ page, request }) => {
+  await request.post('/api/reset', { data: {} });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'See it on sample data' }).click();
+  await page.getByLabel('Explore a different incident').selectOption('release');
+  await expect(page.getByRole('heading', { name: 'Release v2.4 was announced too early' })).toBeVisible();
+  await page.getByRole('button', { name: 'Prepare repair plan' }).click();
+  await expect(page.getByText('Remove the repeated announcement').first()).toBeVisible();
+  await expect(page.getByText('Restore the release issue state').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Approve 3 changes' }).click();
+  await page.getByRole('button', { name: 'Apply approved repair' }).click();
+  await expect(page.getByRole('button', { name: 'Export recovery receipt' })).toBeVisible();
+  await page.screenshot({ path: 'test-results/release-incident.png', fullPage: true });
+});

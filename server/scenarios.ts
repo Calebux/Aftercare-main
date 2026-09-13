@@ -1,8 +1,11 @@
 import { seedWorkspace } from './recovery.js';
+import { seedReleaseWorkspace } from './incidents/release.js';
 import type { EvidenceScenario } from '../shared/scenarios.js';
 
 /** Local fixtures only. Neither the model nor the policy receives the case name or expected answer. */
 export function evidenceScenario(id: EvidenceScenario) {
+  // A different incident definition, handled by the same engine.
+  if (id === 'release') return seedReleaseWorkspace();
   const w = seedWorkspace();
   const [gh, lin, sl] = w.records;
   gh.fields.body = 'Provision the Acme workspace and verify access.';
