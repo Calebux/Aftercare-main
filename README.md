@@ -125,9 +125,10 @@ Each layer is reported separately with its actual denominators, and failures and
 | --- | --- | --- |
 | [Seeded recovery-engine trials](EVALUATION.md) | 9 failure scenarios against simulated GitHub, Linear, and Slack APIs that also hold unrelated records. Each trial is scored by final app state and the requests the apps handled, never by Aftercare's own claims | **450/450** (50 per scenario) |
 | [Real-model investigator, development](EVALUATION-MODEL.md) | `deepseek/deepseek-v4-flash`, 9 cases × 3 trials, on simulated app state | **27/27**; the first run scored 8/27 and is [kept](EVALUATION-MODEL-BASELINE.md) |
-| [Frozen holdout](EVALUATION-HOLDOUT.md) | 4 new cases, frozen with hashes of the cases, scorer, and implementation before a single model run | **10/12**; both failures were safe |
+| [Frozen holdout v1](EVALUATION-HOLDOUT.md) | 4 new cases, frozen with hashes of the cases, scorer, and implementation before a single model run | **10/12**; both failures were safe |
+| [Frozen holdout v2](EVALUATION-HOLDOUT-V2.md) | 5 more new cases, frozen the same way after one v1 failure was fixed, then run once | **15/15** |
 | [Live accounts](VALIDATION.md) | Real GitHub, Linear, and Slack accounts, with GitHub checked independently through its public API | Acceptance cases 1–4 of 5 passed; the recorded agent's run and AI-investigated repair passed |
-| Regression tests | Engine, investigator, provider clients, sessions, HTTP, and outside agents; browser workflow on desktop and mobile | **79/79** tests; **2/2** browser workflows |
+| Regression tests | Engine, investigator, provider clients, sessions, HTTP, and outside agents; browser workflow on desktop and mobile | **80/80** tests; **2/2** browser workflows |
 
 What the evaluation caught:
 
@@ -136,10 +137,11 @@ What the evaluation caught:
   scenario passes 50/50.
 - **Hostile content, 12/25.** Linear member names reached Slack unescaped. They're escaped now, and
   the scenario passes 50/50.
-- **Holdout failures, kept as failures.** Once the model kept a true duplicate open, which was safe
-  (2 writes instead of 3). Once it asked to read a record outside the incident, which ends the
-  investigation instead of returning corrective feedback. Fixing either needs a new frozen holdout,
-  because this one won't be rerun.
+- **Holdout v1 failures, kept as failures.** Once the model kept a true duplicate open, which was
+  safe (2 writes instead of 3). Once it asked to read a record outside the incident, which ended the
+  investigation. Such a read now gets corrective feedback instead. v1 was not rerun: five new cases
+  were frozen with that change and run once as holdout v2, which passed 15/15. That run doesn't record
+  which records the model asked for, so a regression test covers the refusal itself.
 - **Live runs found five problems,** including Linear's AI agent listed as a user and a GitHub
   response that stalled. All five were fixed ([VALIDATION.md](VALIDATION.md#first-live-run-september-12-2026)).
 
@@ -148,7 +150,7 @@ What the evaluation caught:
 | Criterion | Evidence |
 | --- | --- |
 | Technical execution (30%) | The capture, investigate, validate, approve, and execute pipeline above; GitHub REST, Linear GraphQL, and Slack Web API clients used against real accounts; an MCP gateway (JSON-RPC over streamable HTTP) and a Recorder API for outside agents; isolated per-visitor hosted mode. TypeScript end to end: an Express server, a React client, and shared types |
-| Reliability & evaluation (25%) | 450/450 seeded trials scored by app state; 27/27 real-model development trials with the 8/27 baseline kept; a 10/12 frozen holdout with both failures kept; live acceptance cases 1–4 of 5 passed; 79 tests and 2 browser workflows; defects the evaluation found were fixed and given regression tests |
+| Reliability & evaluation (25%) | 450/450 seeded trials scored by app state; 27/27 real-model development trials with the 8/27 baseline kept; a 10/12 frozen holdout with both failures kept, then a fix and a new 15/15 frozen holdout; live acceptance cases 1–4 of 5 passed; 80 tests and 2 browser workflows; defects the evaluation found were fixed and given regression tests |
 | Usefulness (20%) | For teams whose agents write to shared tools. Connect an agent through MCP, watch its actions live, get a Slack alert when a run needs repair, approve a repair that keeps people's changes, and keep a receipt. The built-in agent's full loop ran on real accounts. Willingness to pay is not yet validated |
 | Originality (15%) | Compensating transactions for agent-written SaaS records, where choosing the compensation needs judgment. The model chooses among bounded repairs or preservation, and deterministic policy plus a human approval bound to app state gate that choice. The gateway both limits an agent's reach and checks its reported work against the apps. Public documentation reviewed on September 9 didn't describe this combination ([BUILD.md](BUILD.md#research-checked-september-9-2026)); that shows distinct positioning, not proof that nobody has built it privately |
 | Demo clarity (10%) | Sample data that needs no keys, with a welcome screen; incident variants for distinct work, conflicting owners, and an existing correction; an in-app Evaluation view; a [two-minute script](DEMO.md); the video above |
@@ -157,7 +159,7 @@ What the evaluation caught:
 
 ```sh
 npm install
-npm test                        # 79 tests
+npm test                        # 80 tests
 npm run eval                    # 9 failure scenarios × 25 seeded trials
 npm run eval:holdout -- --mock  # checks the frozen holdout's scorer; no model calls
 npm run dev                     # then open http://127.0.0.1:4310
@@ -285,8 +287,9 @@ rejection counts as a failed trial even when it prevents an unsafe write. Reject
 responses are counted separately. The [scripted control](EVALUATION-MOCK.md) tests the harness, not
 the model.
 
-The frozen holdout refuses to run again; its one run is recorded in
-[EVALUATION-HOLDOUT.md](EVALUATION-HOLDOUT.md).
+Frozen holdouts refuse to run again. v1's one run is in [EVALUATION-HOLDOUT.md](EVALUATION-HOLDOUT.md)
+and v2's is in [EVALUATION-HOLDOUT-V2.md](EVALUATION-HOLDOUT-V2.md); check v2's scorer with
+`npm run eval:holdout -- --mock --suite=eval/holdout-v2`.
 
 ## Let others try it
 
@@ -345,7 +348,7 @@ offline only: provisioning was blocked by Arga account quota on September 9, 202
   already read stay that way.
 - **Small evaluation sets.** Model judgment was measured on small authored sets from one workflow
   family: the 27 development trials reused cases while the investigator was being improved, and the
-  holdout is 4 cases × 3 trials. The policy is not a semantic oracle, and GitHub comments and
+  two holdouts are 4 and 5 cases, 3 trials each. The policy is not a semantic oracle, and GitHub comments and
   attachments aren't analyzed.
 - **Simulated app state in the harness.** Simulated evaluations use in-memory apps with the real
   APIs' request and response shapes. Four of the five live acceptance cases are recorded as passed.
@@ -369,13 +372,15 @@ Built at the event, starting at 9:22 AM Pacific:
 - workspace agent keys;
 - the **Bring your own agent** panel;
 - the example MCP agent and the tests for all of the above (commits `37d8c50` and `e5ab8a2`);
-- this README's judge-facing sections.
+- this README's judge-facing sections;
+- the fix that lets an investigation continue after an out-of-scope read, and frozen holdout v2
+  (commits `ab44e49` and `df8310e`).
 
 ## More detail
 
 - [SYSTEM.md](SYSTEM.md): architecture and reliability brief
 - [VALIDATION.md](VALIDATION.md): live-account runs, security review, and the problems found
 - [EVALUATION.md](EVALUATION.md), [EVALUATION-MODEL.md](EVALUATION-MODEL.md),
-  [EVALUATION-HOLDOUT.md](EVALUATION-HOLDOUT.md): evaluation results
+  [EVALUATION-HOLDOUT.md](EVALUATION-HOLDOUT.md), [EVALUATION-HOLDOUT-V2.md](EVALUATION-HOLDOUT-V2.md): evaluation results
 - [DEMO.md](DEMO.md): two-minute demonstration script and local walkthrough recording
 - [BUILD.md](BUILD.md): product decisions, research, and acceptance cases

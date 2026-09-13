@@ -6,7 +6,7 @@ and receipt export. OpenRouter investigation, twin adapters, and live demo-app
 adapters are implemented, and a full repair has passed against real apps. The recorded
 agent, Slack alert, and AI investigation have also run against real apps.
 
-Validation: 79 regression tests, two browser workflows, 450 simulated-API trials, and 27 real-model development trials on simulated state passed; a frozen four-case holdout scored 10/12. The earlier 8/27 model baseline and current limits are retained in VALIDATION.md. Coverage includes
+Validation: 80 regression tests, two browser workflows, 450 simulated-API trials, and 27 real-model development trials on simulated state passed; frozen holdouts scored 10/12 (four cases) and, after one fix, 15/15 (five new cases). The earlier 8/27 model baseline and current limits are retained in VALIDATION.md. Coverage includes
 HTTP route concurrency coverage and desktop/mobile checks. TypeScript checking
 and the production frontend build passed. Arga twin provisioning was blocked on
 September 9, 2026 by account quota; the project is not buying more runs and now

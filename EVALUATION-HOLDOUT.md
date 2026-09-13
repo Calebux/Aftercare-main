@@ -21,3 +21,5 @@ This is a small internal holdout from the same workflow family, not an independe
 - paraphrased-existing-correction, trial 2: The model requested a record outside this recovery scope.
 
 Earlier development results: [EVALUATION-MODEL.md](EVALUATION-MODEL.md). Actual live runs: [VALIDATION.md](VALIDATION.md).
+
+Later: out-of-scope reads now get corrective feedback, and five new cases were frozen and run once as [holdout v2](EVALUATION-HOLDOUT-V2.md).

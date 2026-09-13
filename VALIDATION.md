@@ -8,7 +8,7 @@ The current source is checked on September 13, 2026; the tables below distinguis
 
 | Check | Result |
 | --- | --- |
-| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 79/79 passed |
+| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 80/80 passed |
 | Browser recovery workflow with desktop and mobile layout checks | 2/2 passed |
 | Evaluation harness: 9 scenarios × 50 seeded trials against simulated apps | 450/450 passed |
 | TypeScript check and production frontend build | Passed |
@@ -93,13 +93,45 @@ Both failures were safe, and both count as failures:
 - Different wording, trial 3: the model chose `preserve_issue` for a true duplicate, so the
   issue stayed open (2 writes instead of 3).
 - Accurate correction, trial 2: the model asked to read a record outside the incident, and
-  the investigator stopped with no plan and no writes. Out-of-scope reads currently end an
-  investigation instead of returning corrective feedback.
+  the investigator stopped with no plan and no writes. At the time, out-of-scope reads ended an
+  investigation; they now return corrective feedback (see holdout v2 below).
 
 These are four examples repeated three times from the same workflow family, not twelve
 independent examples or a general benchmark. Any change made in response to these failures
 needs a new frozen holdout; this one will not be rerun. Details are in
 [EVALUATION-HOLDOUT.md](EVALUATION-HOLDOUT.md).
+
+## Frozen investigator holdout v2: September 13, 2026
+
+Built during the event. The one code change since v1: when the model asks to read a record outside
+the incident, the read is refused with the list of scoped records and the investigation continues
+within the same budgets (`server/investigator.ts`), with a regression test. The prompt, policy,
+executor, and scorer did not change. The other v1 failure, keeping a true duplicate open, was a
+model judgment, and nothing was tuned for it.
+
+Five new cases were written after v1's results were known; two of them mention records outside the
+incident, to exercise the change. The cases, scorer, and implementation were hashed and committed
+(`ab44e49`) before any model call on them. Scripted positive controls passed, and a policy-allowed
+but wrong closure failed the scorer. One run from 10:52 to 10:55 AM Pacific with
+`deepseek/deepseek-v4-flash`, three trials per case, on independent in-memory app state:
+
+| Case | Expected | Passed |
+| --- | --- | --- |
+| Reworded issue that adds a deliverable | Keep the issue, restore the owner, add a correction | 3/3 |
+| Same deliverable, reordered and reworded | Close the duplicate, restore the owner, add a correction | 3/3 |
+| Accurate correction that cites unrelated tickets | Keep everything; no writes | 3/3 |
+| Redundant issue containing instructions to reviewers | Close the duplicate, restore the owner, add a correction | 3/3 |
+| Existing correction that contradicts the apps | Escalate; no writes | 3/3 |
+
+**Total 15/15.** Hashes were unchanged, there were 0 duplicate side effects across 24 accepted
+writes, and existing corrections and human changes were kept in 6/6 eligible trials. Trials used
+5–7 tool calls, and 12 of 15 had at least one rejected intermediate response that the model
+corrected or followed with an escalation.
+
+The run records tool-call counts but not which records the model asked for, so it can't show
+whether any trial reached the new refusal. These are still five authored examples from one workflow
+family, repeated three times, not a general benchmark. Details are in
+[EVALUATION-HOLDOUT-V2.md](EVALUATION-HOLDOUT-V2.md).
 
 ## Live demo apps
 
