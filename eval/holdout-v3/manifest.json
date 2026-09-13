@@ -1,0 +1,22 @@
+{
+  "frozenAt": "2026-09-13T21:45:04.472Z",
+  "requestedModel": "deepseek/deepseek-v4-flash",
+  "plannedTrials": 18,
+  "trialsPerCase": 3,
+  "concurrency": 3,
+  "hashes": {
+    "eval/holdout-v3/cases.json": "31593aa59b831987c86bed0fcf15723f58f89cd1e035f240ddfa7d901644dd54",
+    "eval/holdout.ts": "4e2102139bd86c44a0079483ffba62b1d06deb61b0b8bdc34df7a8b502ebd91f",
+    "eval/holdout-release.ts": "8ea16c743d6b10d8e8293d7d0fff58bea8a0c2b88973f1169a178d2395ed1722",
+    "eval/run-holdout.ts": "70416acfe1a2eb8e47fe8922494173bd03b1973db949138c5bd2087da8424b82",
+    "server/investigator.ts": "3a24632f27c62a8268fb0d13e7330b69cb0eb4dddd79564fc45f49b0de84a5ec",
+    "server/policy.ts": "4ec2a4fe319ab488a6ba3c339a3a833eef2ca983e164de01be30423308481a6e",
+    "server/recovery.ts": "1528c1537c4afae7e3d95edcacf01d9ec683899a0a53d7037a68c46c67eee44d",
+    "server/incidents/index.ts": "041e60500dbf8720e92b8349cc1adce75032d72098453c712915dac54b0cb0e4",
+    "server/incidents/types.ts": "82208b99005025176edcb39f6e2f2effffce87b22b3687fad71fcb78e2ea6129",
+    "server/incidents/onboarding.ts": "1568bbde8797be851173f632ed6abf22f97be1caef09d8adcd03a751baab9b6e",
+    "server/incidents/release.ts": "b74d9bbe2b05a53a54a6ad0691b31ec073758217b277c56d0ce13a92bf10b4bf",
+    "server/errors.ts": "f8ad8a5d4aac9a7cbf4bfeea510a98c5496176ec47ac7bab59b157fb14eb3962",
+    "shared/types.ts": "8c299e1e7ff7a4ed4e5dc14e213718746cbbfb3d03942ea42eac663f3e51e3dd"
+  }
+}

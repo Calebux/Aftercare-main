@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { holdoutTrial, holdoutMock, type HoldoutCase, type HoldoutResult } from './holdout.js';
+import { releaseHoldoutMock, releaseHoldoutTrial, type ReleaseHoldoutCase } from './holdout-release.js';
 
 const args = process.argv.slice(2);
 // Each frozen suite lives in its own folder, is run once, and is never replaced: eval/holdout-v1, eval/holdout-v2, ...
@@ -8,8 +9,13 @@ const root = args.find(a => a.startsWith('--suite='))?.slice('--suite='.length) 
 const version = /^eval\/holdout-v(\d+)$/.exec(root)?.[1];
 if (!version) throw new Error('Name a suite folder such as --suite=eval/holdout-v2.');
 const reportFile = version === '1' ? 'EVALUATION-HOLDOUT.md' : `EVALUATION-HOLDOUT-V${version}.md`;
-const suite = JSON.parse(readFileSync(`${root}/cases.json`, 'utf8')) as { version: number; trialsPerCase: number; concurrency: number; note?: string; cases: HoldoutCase[] };
-const files = [`${root}/cases.json`, 'eval/holdout.ts', 'eval/run-holdout.ts', 'server/investigator.ts', 'server/policy.ts', 'server/recovery.ts', 'server/errors.ts', 'shared/types.ts'];
+const suite = JSON.parse(readFileSync(`${root}/cases.json`, 'utf8')) as { version: number; incident?: 'release'; trialsPerCase: number; concurrency: number; note?: string; negativeControl?: { action: string; writes: number }; cases: Array<HoldoutCase | ReleaseHoldoutCase> };
+// Onboarding and release suites share freezing, hashing, and reporting; only the workspace and scorer differ.
+const release = suite.incident === 'release';
+type TrialOptions = { key: string; model: string; fetcher?: typeof fetch };
+const trialFor = (c: HoldoutCase | ReleaseHoldoutCase, index: number, trial: number, options: TrialOptions) => release ? releaseHoldoutTrial(c as ReleaseHoldoutCase, index, trial, options) : holdoutTrial(c as HoldoutCase, index, trial, options);
+const mockFor = (c: HoldoutCase | ReleaseHoldoutCase, index: number, override?: string) => release ? releaseHoldoutMock(c as ReleaseHoldoutCase, index, override) : holdoutMock(c as HoldoutCase, index, override);
+const files = [`${root}/cases.json`, 'eval/holdout.ts', 'eval/holdout-release.ts', 'eval/run-holdout.ts', 'server/investigator.ts', 'server/policy.ts', 'server/recovery.ts', 'server/incidents/index.ts', 'server/incidents/types.ts', 'server/incidents/onboarding.ts', 'server/incidents/release.ts', 'server/errors.ts', 'shared/types.ts'];
 const fingerprint = () => Object.fromEntries(files.map(file => [file, createHash('sha256').update(readFileSync(file)).digest('hex')]));
 if (!args.includes('--mock') && existsSync('.env')) process.loadEnvFile('.env');
 const model = process.env.OPENROUTER_MODEL;
@@ -21,11 +27,12 @@ if (args.includes('--freeze')) {
 } else if (args.includes('--mock')) {
   let passed = 0;
   for (const [index, c] of suite.cases.entries()) {
-    const row = await holdoutTrial(c, index, 1, { key: 'mock', model: 'mock', fetcher: holdoutMock(c, index) });
+    const row = await trialFor(c, index, 1, { key: 'mock', model: 'mock', fetcher: mockFor(c, index) });
     if (!row.passed) throw new Error(JSON.stringify(row.failures)); passed++;
   }
-  const wrong = await holdoutTrial(suite.cases[0], 0, 1, { key: 'mock', model: 'mock', fetcher: holdoutMock(suite.cases[0], 0, 'close_duplicate') });
-  if (wrong.passed || wrong.acceptedWrites.length !== 3) throw new Error('Negative control did not detect a policy-allowed but semantically wrong repair.');
+  const negative = suite.negativeControl ?? { action: 'close_duplicate', writes: 3 };
+  const wrong = await trialFor(suite.cases[0], 0, 1, { key: 'mock', model: 'mock', fetcher: mockFor(suite.cases[0], 0, negative.action) });
+  if (wrong.passed || wrong.acceptedWrites.length !== negative.writes) throw new Error('Negative control did not detect a policy-allowed but semantically wrong repair.');
   console.log(`${passed}/${suite.cases.length} scripted positive controls passed; the deliberately wrong semantic decision failed scoring. No real model called.`);
 } else if (args.includes('--run')) {
   const manifest = JSON.parse(readFileSync(`${root}/manifest.json`, 'utf8'));
@@ -47,7 +54,7 @@ if (args.includes('--freeze')) {
   await Promise.all(Array.from({ length: suite.concurrency }, async () => {
     while (next < jobs.length) {
       const { c, index, trial } = jobs[next++];
-      const result = await holdoutTrial(c, index, trial, { key: process.env.OPENROUTER_API_KEY!, model: model! });
+      const result = await trialFor(c, index, trial, { key: process.env.OPENROUTER_API_KEY!, model: model! });
       rows.push(result); rows.sort((a, b) => suite.cases.findIndex(c => c.id === a.id) - suite.cases.findIndex(c => c.id === b.id) || a.trial - b.trial);
       writeFileSync(output, JSON.stringify(report(), null, 2) + '\n');
       console.log(`${c.id} ${trial}/${suite.trialsPerCase}: ${result.passed ? 'PASS' : 'FAIL'} · ${result.investigationMs}ms${result.failures.length ? ' · ' + result.failures.join(' ') : ''}`);
@@ -62,7 +69,7 @@ if (args.includes('--freeze')) {
     '| Case | Expected | Passed / trials | Human state preserved | Duplicate effects / writes | Investigation p50 / p95 |', '| --- | --- | --- | --- | --- | --- |',
     ...final.cases.map(c => `| ${c.title} | ${c.expectedOutcome} | ${c.passed}/${c.trials} | ${c.humanTrials ? `${c.humanPreserved}/${c.humanTrials}` : 'N/A'} | ${c.duplicateSideEffects}/${c.writes} | ${c.p50ms} / ${c.p95ms} ms |`), '',
     `Total: ${final.total.passed}/${final.total.trials}. All attempts, including failures, are retained in [results.json](${root}/results.json).`, '',
-    `The [case definitions](${root}/cases.json), expectations, scorer, and implementation were hashed in a [manifest](${root}/manifest.json) before inference. The runner refuses changed hashes and refuses to overwrite the first run. Positive scripted controls pass; a policy-allowed but semantically wrong closure fails the scorer. Scoring requires expected decisions, final state, write counts, unchanged existing corrections, and explicit escalation where required.`, '',
+    `The [case definitions](${root}/cases.json), expectations, scorer, and implementation were hashed in a [manifest](${root}/manifest.json) before inference. The runner refuses changed hashes and refuses to overwrite the first run. Positive scripted controls pass; a policy-allowed but semantically wrong decision fails the scorer. Scoring requires expected decisions, final state, write counts, unchanged existing corrections, and explicit escalation where required.`, '',
     'This is a small internal holdout from the same workflow family, not an independent benchmark or proof of broad generalization. No prompt, policy, case, or expected answer was tuned after observing these results. Provider errors and terminally rejected recommendations count as failed trials. Low-sample percentiles are descriptive only.', '',
     ...rows.filter(r => !r.passed).map(r => `- ${r.id}, trial ${r.trial}: ${r.failures.join(' ')}`), '',
     `${version === '1' ? '' : 'Earlier holdout: [EVALUATION-HOLDOUT.md](EVALUATION-HOLDOUT.md). '}Earlier development results: [EVALUATION-MODEL.md](EVALUATION-MODEL.md). Actual live runs: [VALIDATION.md](VALIDATION.md).`, '',

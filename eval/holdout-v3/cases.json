@@ -1,0 +1,82 @@
+{
+  "version": 3,
+  "incident": "release",
+  "trialsPerCase": 3,
+  "concurrency": 3,
+  "negativeControl": { "action": "keep_post", "writes": 1 },
+  "note": "The first frozen holdout for the release incident, the second incident definition. It uses the same investigator, policy, and executor as the onboarding holdouts; nothing was changed for this suite. The six cases were written after four development trials on the plain release sample and the sample with replies (4/4), are all different from those two, and were frozen with the implementation before any model call on them.",
+  "cases": [
+    {
+      "id": "person-blocked-release",
+      "title": "A person moved the release issue to Blocked",
+      "humanState": "Blocked",
+      "expectedActions": ["remove_duplicate_post", "preserve_state", "append_correction"],
+      "expectedOutcome": "repair",
+      "expectedWrites": 2,
+      "expectedDeleted": "yes",
+      "expectedState": "Blocked",
+      "correctionIncludes": ["removed", "Blocked"],
+      "rationale": "The repeat is identical and has no replies, so it can be removed. A person changed the issue after the agent, so their Blocked state is kept, and the correction reports it."
+    },
+    {
+      "id": "edited-repeat",
+      "title": "The repeated post was edited to add rollback steps",
+      "repeatMessage": "Release v2.4 is live in production. Rollback steps for on-call are in this thread.",
+      "expectedActions": ["keep_post", "restore_state", "append_correction"],
+      "expectedOutcome": "repair",
+      "expectedWrites": 2,
+      "expectedDeleted": "",
+      "expectedState": "In Review",
+      "correctionIncludes": ["kept", "In Review"],
+      "rationale": "The repeated post now carries information the original does not, so removing it would lose work. The agent's stale state change is still restored and corrected."
+    },
+    {
+      "id": "already-cleaned-up",
+      "title": "Someone already removed the repeat, reset the issue, and corrected the thread",
+      "repeatDeleted": true,
+      "humanState": "In Review",
+      "correction": "Correction: v2.4 is not live yet because the release check is still running. The duplicate post was deleted and REL-42 is back In Review.",
+      "expectedActions": ["remove_duplicate_post|keep_post", "preserve_state", "preserve_correction"],
+      "expectedOutcome": "repair",
+      "expectedWrites": 0,
+      "expectedDeleted": "yes",
+      "expectedState": "In Review",
+      "rationale": "People already repaired everything, and the existing correction accurately describes the outcome. Nothing should be written or posted again."
+    },
+    {
+      "id": "missing-previous-state",
+      "title": "The journal lost the release issue's previous state",
+      "missingPreviousState": true,
+      "expectedActions": [],
+      "expectedOutcome": "escalated",
+      "expectedWrites": 0,
+      "expectedDeleted": "",
+      "expectedState": "Done",
+      "rationale": "Without the state before the agent's change there is nothing verified to restore, so the investigator must escalate without writing."
+    },
+    {
+      "id": "contradicting-correction",
+      "title": "An existing correction wrongly says the release is verified",
+      "correction": "Correction: REL-44 is done and v2.4 is verified live; the repeated post was intentional.",
+      "expectedActions": [],
+      "expectedOutcome": "escalated",
+      "expectedWrites": 0,
+      "expectedDeleted": "",
+      "expectedState": "Done",
+      "rationale": "The posted correction contradicts the evidence: the release check had not passed and the post was a lost-response repeat. A second correction is not allowed and keeping a false one is wrong, so the investigator must escalate."
+    },
+    {
+      "id": "replies-and-person-state",
+      "title": "People replied to the repeat and a person moved the issue to Blocked",
+      "replies": "1",
+      "humanState": "Blocked",
+      "expectedActions": ["keep_post", "preserve_state", "append_correction"],
+      "expectedOutcome": "repair",
+      "expectedWrites": 1,
+      "expectedDeleted": "",
+      "expectedState": "Blocked",
+      "correctionIncludes": ["kept", "Blocked"],
+      "rationale": "A reply attaches human work to the repeat, and a person changed the issue state, so both are kept. Only the correction is written."
+    }
+  ]
+}
