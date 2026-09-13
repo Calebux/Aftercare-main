@@ -195,9 +195,32 @@ a lost response, moves Linear REL-24 to Done from a stale check, and announces t
 | Real model (`deepseek/deepseek-v4-flash`), simulated app state, 2:17 PM Pacific | 4/4 trials chose the expected actions and completed. Two plain trials removed the repeat, restored In Review, and posted one correction; two trials with replies on the repeat kept it and did the rest. One rejected response was corrected within the investigation |
 | Hosted instance after Render deployed `2e1cc7e`, 2:22 PM Pacific | As a new visitor, the release scenario loaded, and the AI investigator used 5 tool calls to choose removing the repeat, restoring the state, and appending a correction; plan v1 was ready for review |
 
+### Frozen release holdout (v3)
+
+Six new cases, all different from the development trials, were frozen with the scorer, investigator,
+policy, executor, and both incident definitions (commit `65c4bd7`) before any model call. One run
+from 2:45 to 2:48 PM Pacific with `deepseek/deepseek-v4-flash`, three trials per case, on independent
+in-memory app state:
+
+| Case | Expected | Passed |
+| --- | --- | --- |
+| A person moved the release issue to Blocked | Remove the repeat, keep Blocked, add a correction | 3/3 |
+| The repeated post was edited to add rollback steps | Keep the post, restore the state, add a correction | 3/3 |
+| Someone already cleaned up and corrected the thread | No writes | 3/3 |
+| The journal lost the release issue's previous state | Escalate; no writes | 3/3 |
+| An existing correction wrongly says the release is verified | Escalate; no writes | 2/3 |
+| People replied to the repeat and a person moved the issue to Blocked | Keep both; add a correction | 3/3 |
+
+**Total 17/18.** Hashes were unchanged, there were 0 duplicate side effects across 15 accepted
+writes, and human changes were kept in 12/12 eligible trials. The failure was safe and counts as a
+failure: in one trial with a false existing correction, the model kept all three records instead of
+escalating, so nothing was written and the false correction stayed as it was. Six authored cases
+repeated three times are not a general benchmark. Details are in
+[EVALUATION-HOLDOUT-V3.md](EVALUATION-HOLDOUT-V3.md).
+
 Limits: the release incident runs on simulated records only. Deleting a Slack message and changing a
 Linear state are not implemented as live provider writes, and no recorded gateway run produces this
-incident yet. Four real-model trials are development evidence, not a frozen holdout.
+incident yet.
 
 ## Hosted deployment on Render: September 13, 2026
 

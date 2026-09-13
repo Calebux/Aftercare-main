@@ -86,7 +86,8 @@ independent examples or an estimate of production accuracy.
 | [Frozen holdout v1](EVALUATION-HOLDOUT.md) | 4 new cases, frozen with hashes of the cases, scorer, and implementation before a single model run | **10/12**; both failures were safe |
 | [Frozen holdout v2](EVALUATION-HOLDOUT-V2.md) | 5 more new cases, frozen the same way after one v1 failure was fixed, then run once | **15/15** |
 | [Real-model investigator, development](EVALUATION-MODEL.md) | `deepseek/deepseek-v4-flash`, 9 cases × 3 trials, reused during development on simulated app state | **27/27**; the first run scored 8/27 and is [kept](EVALUATION-MODEL-BASELINE.md) |
-| [Second incident, real model](VALIDATION.md#second-incident-definition-september-13-2026) | Release incident on simulated app state, 4 development trials: 2 plain, 2 with replies on the repeated post | **4/4** chose the expected actions and completed; not a frozen holdout |
+| [Frozen holdout v3, second incident](EVALUATION-HOLDOUT-V3.md) | 6 new release-incident cases, frozen with hashes of the cases, scorer, and implementation before a single model run | **17/18**; the one failure was safe |
+| [Second incident, development](VALIDATION.md#second-incident-definition-september-13-2026) | Release incident on simulated app state, 4 trials before the holdout: 2 plain, 2 with replies on the repeated post | **4/4** chose the expected actions and completed |
 | Regression tests | Engine, both incident definitions, investigator, provider clients, sessions, HTTP, and outside agents; browser workflows on desktop and mobile | **85/85** tests; **3/3** browser workflows |
 | [Recovery-engine determinism](EVALUATION.md) | Regression evidence: 9 authored failure scenarios against simulated APIs, scored by final state and handled requests. No model calls or live apps | **450/450** (50 per scenario); exercises recovery mechanics within the simulator |
 
@@ -113,6 +114,9 @@ What the evaluation caught:
   returned malformed JSON for `submit_repair`, which ended the investigation, and six local trials
   reproduced it once. Such calls now get corrective feedback. Six more trials all completed, two of
   them after recovering from a malformed call ([VALIDATION.md](VALIDATION.md#hosted-deployment-on-render-september-13-2026)).
+- **Release holdout failure, kept as a failure.** In one of three trials, the model kept an existing
+  correction that wrongly said the release was verified, instead of escalating. It wrote nothing, so
+  the false message stayed as it was ([EVALUATION-HOLDOUT-V3.md](EVALUATION-HOLDOUT-V3.md)).
 
 ## How it works
 
@@ -202,7 +206,7 @@ Unknown Host headers get HTTP 421, and pages can't be framed
 | Criterion | Evidence |
 | --- | --- |
 | Technical execution (30%) | The capture, investigate, validate, approve, and execute pipeline above; GitHub REST, Linear GraphQL, and Slack Web API clients used against real accounts; an MCP gateway (JSON-RPC over streamable HTTP) and a Recorder API for outside agents; isolated per-visitor hosted mode; incident types as definitions over a shared engine, with a second incident added without engine changes. TypeScript end to end: an Express server, a React client, and shared types |
-| Reliability & evaluation (25%) | Recorded live recovery with a human edit; frozen holdout v1 10/12 on 4 cases and v2 15/15 on 5 new cases; real-model development 27/27 with the 8/27 baseline retained. Separate regression evidence: 450/450 simulated-engine trials, 85 tests, and 3 browser workflows. The second incident scored 4/4 in real-model development trials. Defects found by evaluations were fixed and given regression tests |
+| Reliability & evaluation (25%) | Recorded live recovery with a human edit; frozen holdout v1 10/12 on 4 cases and v2 15/15 on 5 new cases; real-model development 27/27 with the 8/27 baseline retained. Separate regression evidence: 450/450 simulated-engine trials, 85 tests, and 3 browser workflows. The second incident scored 17/18 on its own frozen holdout, with the one failure kept. Defects found by evaluations were fixed and given regression tests |
 | Usefulness (20%) | For teams whose agents write to shared tools. Connect an agent through MCP, watch its actions live, get a Slack alert when a run needs repair, approve a repair that keeps people's changes, and keep a receipt. The built-in agent's full loop ran on real accounts. Willingness to pay is not yet validated |
 | Originality (15%) | Compensating transactions for agent-written SaaS records, where choosing the compensation needs judgment. The model chooses among bounded repairs or preservation, and deterministic policy plus a human approval bound to app state gate that choice. The gateway both limits an agent's reach and checks its reported work against the apps. Public documentation reviewed on September 9 didn't describe this combination ([BUILD.md](BUILD.md#research-checked-september-9-2026)); that shows distinct positioning, not proof that nobody has built it privately |
 | Demo clarity (10%) | [1:55 live MCP recovery video](https://aftercare-ynmc.onrender.com/demo.html); sample data that needs no keys; an in-app Evaluation view with retained failures; [recording notes](DEMO.md) |
@@ -429,8 +433,8 @@ offline only: provisioning was blocked by Arga account quota on September 9, 202
   already read stay that way.
 - **Small evaluation sets.** Model judgment was measured on small authored sets from one workflow
   family: the 27 development trials reused cases while the investigator was being improved, and the
-  two holdouts are 4 and 5 cases, 3 trials each. The malformed-argument fix came after holdout v2,
-  and no frozen holdout covers it. The policy is not a semantic oracle, and GitHub comments and
+  three holdouts are 4, 5, and 6 cases, 3 trials each. Only the release holdout (v3) ran on the
+  current investigator, which includes the malformed-argument fix; no onboarding holdout has. The policy is not a semantic oracle, and GitHub comments and
   attachments aren't analyzed.
 - **Simulated app state in the harness.** Simulated evaluations use in-memory apps with the real
   APIs' request and response shapes. Four of the five live acceptance cases are recorded as passed.
@@ -464,7 +468,8 @@ Built at the event, starting at 9:22 AM Pacific:
 - the Render deployment, and corrective feedback for malformed tool arguments, a problem found on
   the live site;
 - incident definitions: onboarding's rules moved into configuration, then a second incident added
-  without engine changes (commits `cc150a8` and `be324fd`).
+  without engine changes (commits `cc150a8` and `be324fd`);
+- a frozen holdout for the release incident, 17/18 (commit `65c4bd7`).
 
 ## More detail
 
