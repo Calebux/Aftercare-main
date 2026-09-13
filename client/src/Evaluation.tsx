@@ -24,13 +24,25 @@ const caught = [
 const cell: React.CSSProperties = { padding: '10px 12px', borderBottom: '1px solid #ebeae4', textAlign: 'left', verticalAlign: 'top', fontSize: 12, lineHeight: 1.5 };
 const percent = (r: { passed: number; trials: number }) => Math.round((100 * r.passed) / r.trials);
 
+/** One frozen holdout run, listing every failed attempt. */
+function HoldoutSection({ holdout, heading, note }: { holdout: HoldoutResults; heading: string; note: string }) {
+  return <>
+    <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{heading}</h3>
+    <p style={{ fontSize: 13, lineHeight: 1.7 }}>{holdout.total.passed}/{holdout.total.trials} trials passed · {holdout.requestedModel} · frozen {new Date(holdout.frozenAt).toLocaleDateString()} · {holdout.hashesUnchanged ? 'implementation unchanged during the run' : 'implementation changed during the run'}{!holdout.complete && ` · Incomplete: ${holdout.total.trials}/${holdout.plannedTrials} planned trials`}</p>
+    <div style={{ overflowX: 'auto', margin: '12px 0' }}><table style={{ width: '100%', minWidth: 520, borderCollapse: 'collapse' }}><thead><tr>{['Case', 'Expected', 'Passed', 'Duplicate effects / writes'].map(t => <th key={t} style={cell}>{t}</th>)}</tr></thead><tbody>{holdout.cases.map(c => <tr key={c.id}><td style={cell}>{c.title}</td><td style={cell}>{c.expectedOutcome === 'escalated' ? 'Escalate' : 'Repair'}</td><td style={cell}>{c.passed}/{c.trials}</td><td style={cell}>{c.duplicateSideEffects}/{c.writes}</td></tr>)}</tbody></table></div>
+    {holdout.rows.some(r => !r.passed) && <ul style={{ paddingLeft: 18, fontSize: 12, lineHeight: 1.7, color: '#5f645c' }}>{holdout.rows.filter(r => !r.passed).map(r => <li key={`${r.id}-${r.trial}`}>{holdout.cases.find(c => c.id === r.id)?.title ?? r.id}, trial {r.trial}: {r.failures.join(' ')}</li>)}</ul>}
+    <p style={{ fontSize: 12, lineHeight: 1.6, color: '#6f746b' }}>{note}</p>
+  </>;
+}
+
 /** Results of the seeded evaluation harness, read from the committed results file. */
 export function EvaluationView({ onClose }: { onClose: () => void }) {
   const [results, setResults] = useState<Results | null>();
   const [agent, setAgent] = useState<AgentResults | null>(null);
   const [mock, setMock] = useState<AgentResults | null>(null);
   const [holdout, setHoldout] = useState<HoldoutResults | null>(null);
-  useEffect(() => { fetch('/api/evaluation').then(r => r.json()).then(body => { setResults(body.evaluation ?? null); setAgent(body.investigations?.model ?? null); setMock(body.investigations?.mock ?? null); setHoldout(body.investigations?.holdout ?? null); }).catch(() => setResults(null)); }, []);
+  const [holdoutV2, setHoldoutV2] = useState<HoldoutResults | null>(null);
+  useEffect(() => { fetch('/api/evaluation').then(r => r.json()).then(body => { setResults(body.evaluation ?? null); setAgent(body.investigations?.model ?? null); setMock(body.investigations?.mock ?? null); setHoldout(body.investigations?.holdout ?? null); setHoldoutV2(body.investigations?.holdoutV2 ?? null); }).catch(() => setResults(null)); }, []);
   return <div className="modal-backdrop">
     <section role="dialog" aria-modal="true" aria-labelledby="evaluation-title" style={dialog}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -44,13 +56,8 @@ export function EvaluationView({ onClose }: { onClose: () => void }) {
         <div style={{ overflowX: 'auto', margin: '12px 0' }}><table style={{ width: '100%', minWidth: 690, borderCollapse: 'collapse' }}><thead><tr>{['Case', 'Correct outcome', 'Human changes kept', 'Duplicate effects / writes', 'Investigation p50 / p95'].map(t => <th key={t} style={cell}>{t}</th>)}</tr></thead><tbody>{agent.scenarios.map(s => <tr key={s.id}><td style={cell}>{s.id.replaceAll('-', ' ')}{(s.rejectedRecommendations ?? 0) > 0 && <small style={{ display: 'block' }}>{s.rejectedRecommendations} responses rejected before completion</small>}{s.policyRejected > 0 && <small style={{ display: 'block' }}>{s.policyRejected} policy rejections (failed trials)</small>}</td><td style={cell}>{s.correct}/{s.trials}</td><td style={cell}>{s.humanTrials ? `${s.humanPreserved}/${s.humanTrials}` : 'N/A'}</td><td style={cell}>{s.duplicateSideEffects}/{s.writes}</td><td style={cell}>{s.p50ms ?? '—'} / {s.p95ms ?? '—'} ms</td></tr>)}</tbody></table></div>
         <p style={{ fontSize: 12, lineHeight: 1.6, color: '#6f746b' }}>Correct final state or an appropriate explicit escalation counts as correct. Terminally blocked recommendations count as failed trials; rejected intermediate responses are shown separately. Human-edit trials include a second investigation. This small authored set tests one workflow; it does not establish performance on arbitrary incidents.</p>
       </> : <p style={{ fontSize: 13 }}>No real-model evaluation has been recorded.</p>}
-      {holdout && <>
-        <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>Frozen holdout · new cases locked before the model ran</h3>
-        <p style={{ fontSize: 13, lineHeight: 1.7 }}>{holdout.total.passed}/{holdout.total.trials} trials passed · {holdout.requestedModel} · frozen {new Date(holdout.frozenAt).toLocaleDateString()} · {holdout.hashesUnchanged ? 'implementation unchanged during the run' : 'implementation changed during the run'}{!holdout.complete && ` · Incomplete: ${holdout.total.trials}/${holdout.plannedTrials} planned trials`}</p>
-        <div style={{ overflowX: 'auto', margin: '12px 0' }}><table style={{ width: '100%', minWidth: 520, borderCollapse: 'collapse' }}><thead><tr>{['Case', 'Expected', 'Passed', 'Duplicate effects / writes'].map(t => <th key={t} style={cell}>{t}</th>)}</tr></thead><tbody>{holdout.cases.map(c => <tr key={c.id}><td style={cell}>{c.title}</td><td style={cell}>{c.expectedOutcome === 'escalated' ? 'Escalate' : 'Repair'}</td><td style={cell}>{c.passed}/{c.trials}</td><td style={cell}>{c.duplicateSideEffects}/{c.writes}</td></tr>)}</tbody></table></div>
-        {holdout.rows.some(r => !r.passed) && <ul style={{ paddingLeft: 18, fontSize: 12, lineHeight: 1.7, color: '#5f645c' }}>{holdout.rows.filter(r => !r.passed).map(r => <li key={`${r.id}-${r.trial}`}>{holdout.cases.find(c => c.id === r.id)?.title ?? r.id}, trial {r.trial}: {r.failures.join(' ')}</li>)}</ul>}
-        <p style={{ fontSize: 12, lineHeight: 1.6, color: '#6f746b' }}>Four examples written with expected outcomes and hashed with the investigator, policy, and scorer before a single model run. Every attempt is kept. Repeats show variation on four examples; this is not a general benchmark.</p>
-      </>}
+      {holdout && <HoldoutSection holdout={holdout} heading="Frozen holdout · new cases locked before the model ran" note="Four examples written with expected outcomes and hashed with the investigator, policy, and scorer before a single model run. Every attempt is kept. Repeats show variation on four examples; this is not a general benchmark." />}
+      {holdoutV2 && <HoldoutSection holdout={holdoutV2} heading="Frozen holdout v2 · five more new cases, locked after one fix" note="After v1, a read outside the incident began returning corrective feedback instead of ending the investigation. Five new cases were then hashed with the implementation before a single run. The run doesn't record which records the model requested, so it can't show whether that refusal was reached." />}
       {mock && <p style={{ fontSize: 12, color: '#6f746b', margin: '10px 0' }}>Harness check: {mock.total.passed}/{mock.total.trials} with scripted model responses. This checks the evaluation machinery, not AI judgment.</p>}
       <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>Recovery engine · scenario rules, simulated APIs</h3>
       {results === undefined ? <p style={{ display: 'flex', gap: 8, alignItems: 'center', color: '#747971' }}><LoaderCircle className="spin" size={16} />Loading results…</p>

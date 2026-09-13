@@ -10,6 +10,8 @@ test('operator rejects stale plan, preserves human work, and reconciles interrup
   await page.getByRole('button', { name: 'Evaluation', exact: true }).first().click();
   await expect(page.getByRole('dialog', { name: 'How reliably Aftercare repairs' })).toBeVisible();
   await expect(page.getByText(/^\d+ of \d+ trials passed/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Frozen holdout ·/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Frozen holdout v2 ·/ })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: /Prepare repair plan/ }).click();
