@@ -294,7 +294,8 @@ and v2's is in [EVALUATION-HOLDOUT-V2.md](EVALUATION-HOLDOUT-V2.md); check v2's 
 ## Let others try it
 
 Set `AFTERCARE_PUBLIC_URL` to the address people will open, for example
-`https://aftercare.example.com`, then build and start:
+`https://aftercare.example.com`, then build and start. On Render, the service's own address
+(`RENDER_EXTERNAL_URL`) is used when `AFTERCARE_PUBLIC_URL` isn't set.
 
 ```sh
 npm ci && npm run build
@@ -323,6 +324,16 @@ its Marketplace, and the repair's checks read the thread more often than that.
 There are no accounts or sign-in, and at most 200 sessions stay active. If you set
 `AFTERCARE_HOSTED_AI=1`, anyone with the link can run investigations on your
 OpenRouter key, so use a key with a spending limit.
+
+### Deploy on Render
+
+This repository includes a Render Blueprint, [`render.yaml`](render.yaml). In Render, choose
+**New → Blueprint**, connect this GitHub repository, and apply it. That creates one free web service
+that builds with `npm ci --include=dev && npm run build`, starts with `npm start`, and runs as a
+hosted instance at its `onrender.com` address. AI investigation stays off until you add
+`OPENROUTER_API_KEY` and `AFTERCARE_HOSTED_AI=1` under **Environment**. Free instances sleep after
+15 minutes without traffic and take about a minute to wake; a restart loses visitors' workspaces,
+tokens, and agent keys.
 
 ## Arga twins (optional)
 

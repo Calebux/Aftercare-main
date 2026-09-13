@@ -19,7 +19,8 @@ if (existsSync('.env')) process.loadEnvFile('.env');
 const app = express();
 const port = Number(process.env.PORT || 4310);
 const scenarioOnly = process.env.AFTERCARE_SCENARIO_ONLY === '1';
-const publicUrl = process.env.AFTERCARE_PUBLIC_URL?.replace(/\/$/, '');
+// On Render, the service's own public address is used when no address is configured.
+const publicUrl = (process.env.AFTERCARE_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL)?.replace(/\/$/, '');
 // A public URL means visitors besides the operator: separate workspaces, and only their own apps.
 const hosted = Boolean(publicUrl);
 if (hosted && process.env.NODE_ENV !== 'production') {

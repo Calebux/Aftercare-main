@@ -1,0 +1,19 @@
+# Render Blueprint: one free web service built from this repository's main branch.
+# Aftercare uses Render's public address (RENDER_EXTERNAL_URL) as its hosted URL, so every
+# visitor gets a separate workspace and only that host name is served. No health check path
+# is set, so Render checks that the port is open.
+# AI investigation stays off unless OPENROUTER_API_KEY and AFTERCARE_HOSTED_AI=1 are added
+# under Environment; anyone with the link could then spend that key.
+services:
+  - type: web
+    name: aftercare
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: OPENROUTER_MODEL
+        value: deepseek/deepseek-v4-flash
