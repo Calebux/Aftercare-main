@@ -1,0 +1,17 @@
+{
+  "frozenAt": "2026-09-13T17:52:17.832Z",
+  "requestedModel": "deepseek/deepseek-v4-flash",
+  "plannedTrials": 15,
+  "trialsPerCase": 3,
+  "concurrency": 3,
+  "hashes": {
+    "eval/holdout-v2/cases.json": "8eb8d90dc8e3f8b0b8e9842cfabefcd1791f20fbdd8868a78d4351cb84a5a77c",
+    "eval/holdout.ts": "4e2102139bd86c44a0079483ffba62b1d06deb61b0b8bdc34df7a8b502ebd91f",
+    "eval/run-holdout.ts": "200677c2d480f8b485464e6334f0207794a6e2801c41f7f14c2fb54648f2692b",
+    "server/investigator.ts": "1c8293e2b3c780cc4293f3e0b89fe177b9b8a1fe84a681eefc4a7aeaa0abcbf3",
+    "server/policy.ts": "47e828461d71267afc35185ff52f1fc19a0b169d9a21dbe225e5c479ce2ba92a",
+    "server/recovery.ts": "1d7fc5a2938af7b5217adab0d773eb6d37265f7a0129fd781affbc6ce63241ef",
+    "server/errors.ts": "f8ad8a5d4aac9a7cbf4bfeea510a98c5496176ec47ac7bab59b157fb14eb3962",
+    "shared/types.ts": "a63fd1d195bbf5c97a6d19f62d6d7011b01eb8bda0d5070fc48dd0550c5f5ddc"
+  }
+}

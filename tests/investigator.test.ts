@@ -81,3 +81,24 @@ test('a model repeatedly ignoring structured tools stops at the existing round b
   await assert.rejects(investigate(seedWorkspace(), { key: 'test-not-a-key', fetcher }), /round budget/);
   assert.equal(calls, 8);
 });
+
+test('a read outside the incident gets feedback instead of ending the investigation', async () => {
+  const batches = [
+    [{ name: 'get_run_actions', args: {} }, { name: 'read_app_record', args: { recordId: 'gh-182' } }],
+    ['gh-184', 'lin-93', 'slack-42'].map(recordId => ({ name: 'read_app_record', args: { recordId } })),
+    [{ name: 'submit_repair', args: finding() }],
+  ];
+  let n = 0;
+  const fetcher: typeof fetch = async (_url, init) => {
+    if (n === 1) {
+      const refusal = JSON.parse(JSON.parse(String(init?.body)).messages.at(-1).content);
+      assert.equal(refusal.accepted, false); assert.match(refusal.error, /outside this recovery scope/);
+      assert.deepEqual(refusal.scopedRecordIds, ['gh-184', 'lin-93', 'slack-42']);
+    }
+    return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', tool_calls: batches[n++].map((b, i) => ({ id: `${n}-${i}`, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.args) } })) } }] }));
+  };
+  const result = await investigate(seedWorkspace(), { key: 'test-not-a-key', fetcher });
+  assert.equal(n, 3);
+  assert.equal(result.outcome, 'repair');
+  assert.equal(result.toolCalls, 6);
+});

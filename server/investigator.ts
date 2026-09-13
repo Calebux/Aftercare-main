@@ -79,7 +79,12 @@ export async function investigate(w: Workspace, options: { key: string; model?: 
         case 'get_run_actions': journalRead = true; result = { incidentId: w.incidentId, source: w.run?.mode === 'recorded' ? 'recorded demonstration tool calls' : 'seeded scenario evidence', actions: w.sourceActions, run: w.run && { agent: w.run.agent, task: w.run.task, mode: w.run.mode, actions: w.run.actions.map(({ tool, actor, summary, before, after, recordId, outcome }) => ({ tool, actor, summary, before, after, recordId, outcome })) } }; options.onTool?.('Read the recorded agent run and its repair journal.'); break;
         case 'read_app_record': {
           const r = w.records.find(r => r.id === args.recordId);
-          if (!r) throw new RecoveryError('The model requested a record outside this recovery scope.', 422);
+          if (!r) {
+            // Refusing reveals nothing and still spends the tool-call budget, so the model can correct itself.
+            result = { accepted: false, error: 'That record is outside this recovery scope.', scopedRecordIds: w.records.map(r => r.id), next: 'Read only the scoped records. When recorded, the canonical GitHub issue body is in the GitHub record\'s canonicalBody field.' };
+            options.onTool?.('Refused a read outside this recovery; the investigation continued.');
+            break;
+          }
           reads.add(r.id); result = r; options.onTool?.(`Inspected ${r.app} record ${r.label}.`); break;
         }
         case 'submit_repair': {
