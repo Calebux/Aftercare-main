@@ -5,8 +5,8 @@ out what went wrong, prepares a repair that keeps what people changed since, and
 after a person approves.
 
 **Try it live:** https://aftercare-ynmc.onrender.com. Choose **See it on sample data**; no accounts or
-keys are needed. AI investigation is off on this shared instance, so plans there come from labeled
-scenario rules. The free instance sleeps when idle, so the first load can take about a minute.
+keys are needed. The AI investigator (`deepseek/deepseek-v4-flash`) is on there, so preparing a plan takes
+about 15–30 seconds. The free instance sleeps when idle, so the first load can take about a minute.
 
 **Demo video:** _(link to be added)_
 
@@ -132,7 +132,7 @@ Each layer is reported separately with its actual denominators, and failures and
 | [Frozen holdout v1](EVALUATION-HOLDOUT.md) | 4 new cases, frozen with hashes of the cases, scorer, and implementation before a single model run | **10/12**; both failures were safe |
 | [Frozen holdout v2](EVALUATION-HOLDOUT-V2.md) | 5 more new cases, frozen the same way after one v1 failure was fixed, then run once | **15/15** |
 | [Live accounts](VALIDATION.md) | Real GitHub, Linear, and Slack accounts, with GitHub checked independently through its public API | Acceptance cases 1–4 of 5 passed; the recorded agent's run and AI-investigated repair passed |
-| Regression tests | Engine, investigator, provider clients, sessions, HTTP, and outside agents; browser workflow on desktop and mobile | **80/80** tests; **2/2** browser workflows |
+| Regression tests | Engine, investigator, provider clients, sessions, HTTP, and outside agents; browser workflow on desktop and mobile | **81/81** tests; **2/2** browser workflows |
 
 What the evaluation caught:
 
@@ -148,13 +148,17 @@ What the evaluation caught:
   which records the model asked for, so a regression test covers the refusal itself.
 - **Live runs found five problems,** including Linear's AI agent listed as a user and a GitHub
   response that stalled. All five were fixed ([VALIDATION.md](VALIDATION.md#first-live-run-september-12-2026)).
+- **The hosted AI investigator failed in one of its first two live attempts.** The model provider
+  returned malformed JSON for `submit_repair`, which ended the investigation, and six local trials
+  reproduced it once. Such calls now get corrective feedback. Six more trials all completed, two of
+  them after recovering from a malformed call ([VALIDATION.md](VALIDATION.md#hosted-deployment-on-render-september-13-2026)).
 
 ## Judging criteria and evidence
 
 | Criterion | Evidence |
 | --- | --- |
 | Technical execution (30%) | The capture, investigate, validate, approve, and execute pipeline above; GitHub REST, Linear GraphQL, and Slack Web API clients used against real accounts; an MCP gateway (JSON-RPC over streamable HTTP) and a Recorder API for outside agents; isolated per-visitor hosted mode. TypeScript end to end: an Express server, a React client, and shared types |
-| Reliability & evaluation (25%) | 450/450 seeded trials scored by app state; 27/27 real-model development trials with the 8/27 baseline kept; a 10/12 frozen holdout with both failures kept, then a fix and a new 15/15 frozen holdout; live acceptance cases 1–4 of 5 passed; 80 tests and 2 browser workflows; defects the evaluation found were fixed and given regression tests |
+| Reliability & evaluation (25%) | 450/450 seeded trials scored by app state; 27/27 real-model development trials with the 8/27 baseline kept; a 10/12 frozen holdout with both failures kept, then a fix and a new 15/15 frozen holdout; live acceptance cases 1–4 of 5 passed; 81 tests and 2 browser workflows; defects the evaluation found were fixed and given regression tests |
 | Usefulness (20%) | For teams whose agents write to shared tools. Connect an agent through MCP, watch its actions live, get a Slack alert when a run needs repair, approve a repair that keeps people's changes, and keep a receipt. The built-in agent's full loop ran on real accounts. Willingness to pay is not yet validated |
 | Originality (15%) | Compensating transactions for agent-written SaaS records, where choosing the compensation needs judgment. The model chooses among bounded repairs or preservation, and deterministic policy plus a human approval bound to app state gate that choice. The gateway both limits an agent's reach and checks its reported work against the apps. Public documentation reviewed on September 9 didn't describe this combination ([BUILD.md](BUILD.md#research-checked-september-9-2026)); that shows distinct positioning, not proof that nobody has built it privately |
 | Demo clarity (10%) | Sample data that needs no keys, with a welcome screen; incident variants for distinct work, conflicting owners, and an existing correction; an in-app Evaluation view; a [two-minute script](DEMO.md); the video above |
@@ -163,7 +167,7 @@ What the evaluation caught:
 
 ```sh
 npm install
-npm test                        # 80 tests
+npm test                        # 81 tests
 npm run eval                    # 9 failure scenarios × 25 seeded trials
 npm run eval:holdout -- --mock  # checks the frozen holdout's scorer; no model calls
 npm run dev                     # then open http://127.0.0.1:4310
@@ -363,7 +367,8 @@ offline only: provisioning was blocked by Arga account quota on September 9, 202
   already read stay that way.
 - **Small evaluation sets.** Model judgment was measured on small authored sets from one workflow
   family: the 27 development trials reused cases while the investigator was being improved, and the
-  two holdouts are 4 and 5 cases, 3 trials each. The policy is not a semantic oracle, and GitHub comments and
+  two holdouts are 4 and 5 cases, 3 trials each. The malformed-argument fix came after holdout v2,
+  and no frozen holdout covers it. The policy is not a semantic oracle, and GitHub comments and
   attachments aren't analyzed.
 - **Simulated app state in the harness.** Simulated evaluations use in-memory apps with the real
   APIs' request and response shapes. Four of the five live acceptance cases are recorded as passed.
@@ -389,7 +394,9 @@ Built at the event, starting at 9:22 AM Pacific:
 - the example MCP agent and the tests for all of the above (commits `37d8c50` and `e5ab8a2`);
 - this README's judge-facing sections;
 - the fix that lets an investigation continue after an out-of-scope read, and frozen holdout v2
-  (commits `ab44e49` and `df8310e`).
+  (commits `ab44e49` and `df8310e`);
+- the Render deployment, and corrective feedback for malformed tool arguments, a problem found on
+  the live site.
 
 ## More detail
 

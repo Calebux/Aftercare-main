@@ -71,9 +71,20 @@ export async function investigate(w: Workspace, options: { key: string; model?: 
     const observedReads = new Set(reads); const observedJournal = journalRead;
     for (const call of message.tool_calls) {
       if (++calls > 20) throw new RecoveryError('Investigation reached its tool-call budget.', 422);
-      let args: Record<string, unknown>;
-      try { args = JSON.parse(call.function.arguments); if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error(); }
-      catch { throw new RecoveryError('The model supplied invalid tool arguments.', 422); }
+      // Providers can return truncated or malformed JSON, or an empty string for a tool without
+      // parameters. A refusal reveals nothing and still spends the tool-call budget.
+      let args: Record<string, unknown> | undefined;
+      try {
+        const given: unknown = call.function.arguments;
+        const parsed = typeof given === 'string' ? (given.trim() ? JSON.parse(given) : {}) : given;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) args = parsed as Record<string, unknown>;
+      } catch { /* refused below */ }
+      if (!args) {
+        if (call.function.name === 'submit_repair' || call.function.name === 'escalate') rejectedRecommendations++;
+        messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify({ accepted: false, error: 'The tool arguments were not a valid JSON object.', next: 'Call the tool again with valid JSON arguments. Keep the summary under 400 characters and each reason under 240 characters.' }) });
+        options.onTool?.('Refused a tool call with malformed arguments; the investigation continued.');
+        continue;
+      }
       let result: unknown;
       switch (call.function.name) {
         case 'get_run_actions': journalRead = true; result = { incidentId: w.incidentId, source: w.run?.mode === 'recorded' ? 'recorded demonstration tool calls' : 'seeded scenario evidence', actions: w.sourceActions, run: w.run && { agent: w.run.agent, task: w.run.task, mode: w.run.mode, actions: w.run.actions.map(({ tool, actor, summary, before, after, recordId, outcome }) => ({ tool, actor, summary, before, after, recordId, outcome })) } }; options.onTool?.('Read the recorded agent run and its repair journal.'); break;

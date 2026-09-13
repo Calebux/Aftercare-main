@@ -102,3 +102,22 @@ test('a read outside the incident gets feedback instead of ending the investigat
   assert.equal(result.outcome, 'repair');
   assert.equal(result.toolCalls, 6);
 });
+
+test('malformed tool arguments get feedback instead of ending the investigation', async () => {
+  const valid = JSON.stringify(finding());
+  const batches = [
+    [{ name: 'get_run_actions', raw: '' }, ...['gh-184', 'lin-93', 'slack-42'].map(recordId => ({ name: 'read_app_record', raw: JSON.stringify({ recordId }) }))],
+    [{ name: 'submit_repair', raw: valid.slice(0, 80) }],
+    [{ name: 'submit_repair', raw: valid }],
+  ];
+  let n = 0;
+  const fetcher: typeof fetch = async (_url, init) => {
+    if (n === 2) assert.match(JSON.parse(JSON.parse(String(init?.body)).messages.at(-1).content).error, /not a valid JSON object/);
+    return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', tool_calls: batches[n++].map((b, i) => ({ id: `${n}-${i}`, type: 'function', function: { name: b.name, arguments: b.raw } })) } }] }));
+  };
+  const result = await investigate(seedWorkspace(), { key: 'test-not-a-key', fetcher });
+  assert.equal(n, 3);
+  assert.equal(result.outcome, 'repair');
+  assert.equal(result.rejectedRecommendations, 1);
+  assert.equal(result.toolCalls, 6);
+});

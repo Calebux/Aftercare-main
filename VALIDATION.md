@@ -8,7 +8,7 @@ The current source is checked on September 13, 2026; the tables below distinguis
 
 | Check | Result |
 | --- | --- |
-| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 80/80 passed |
+| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 81/81 passed |
 | Browser recovery workflow with desktop and mobile layout checks | 2/2 passed |
 | Evaluation harness: 9 scenarios × 50 seeded trials against simulated apps | 450/450 passed |
 | TypeScript check and production frontend build | Passed |
@@ -150,6 +150,21 @@ Checked against the live service at 11:32 AM Pacific:
 | New visitor | Workspace created, with an `HttpOnly; Secure; SameSite=Lax` session cookie |
 | Evaluation data | Holdout v1 10/12 and v2 15/15 served |
 | MCP gateway without a key | HTTP 401 |
+
+The operator then turned AI investigation on by adding `OPENROUTER_API_KEY` and
+`AFTERCARE_HOSTED_AI=1` in Render; at 11:46 AM `/api/config` reported `openrouter`. Investigations
+of the sample incident, each started as a new visitor:
+
+| Attempt | Result |
+| --- | --- |
+| Live, 11:47 AM | Failed after 18 seconds with "The model supplied invalid tool arguments"; no plan and no writes |
+| Live, 11:48 AM | Repair recommended in 16 seconds after 5 tool calls; plan v1 ready for review |
+| Local, 6 trials before the fix | 5 completed and 1 failed the same way. Every response came from the provider Baidu, and the failure was `submit_repair` arguments that were not valid JSON |
+| Local, 6 trials after the fix | 6 completed; 2 recovered after one malformed call each |
+
+Malformed or empty tool arguments now get corrective feedback within the existing budgets instead of
+ending the investigation, and a regression test covers this. The fix came after holdout v2, so no
+frozen holdout covers it, and six trials are a small sample.
 
 A visitor connecting their own GitHub, Linear, and Slack accounts on the hosted instance has not
 been tested yet.
