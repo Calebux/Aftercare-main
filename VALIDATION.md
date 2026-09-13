@@ -8,7 +8,7 @@ The current source passed these checks on September 12, 2026:
 
 | Check | Result |
 | --- | --- |
-| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 53/53 passed |
+| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 57/57 passed |
 | Browser recovery workflow with desktop and mobile layout checks | 1/1 passed |
 | TypeScript check and production frontend build | Passed |
 
@@ -25,7 +25,7 @@ through their public APIs.
 
 | Check | Observed result |
 | --- | --- |
-| Offline tests against GitHub, Linear and Slack request and response shapes | 17/17 passed (included above) |
+| Offline tests against GitHub, Linear and Slack request and response shapes | 19/19 passed (included above) |
 | Unauthenticated probe of Linear GraphQL | HTTP 401, error code `AUTHENTICATION_ERROR` |
 | Probe of GitHub REST with an invalid token | HTTP 401, `Bad credentials` |
 | Probe of Slack `conversations.replies` over GET with an invalid token | `ok: false`, `invalid_auth` |
@@ -40,7 +40,8 @@ The incident is now produced by a demonstration agent whose calls pass through
 Aftercare's recorder, instead of being seeded directly. Offline tests cover the
 recorded actions, the checks that flag a repeated create, a wrong owner, and a
 premature announcement, and cleanup when a run fails partway. It has not yet run
-against real accounts; the live cases below used the earlier seeding.
+against real accounts; the live cases below used the earlier seeding. The live run view
+and Slack alert added the same day are also untested against real accounts.
 
 The AI investigator ran against a real model for the first time on September 13,
 2026: `deepseek/deepseek-v4-flash` read the journal and all three records in five
@@ -92,6 +93,11 @@ was fixed, and `npm audit` reported no known dependency vulnerabilities.
 Confirmed not vulnerable: tokens never reach the browser or disk, cross-origin writes
 and planted session cookies are refused, provider hosts are fixed, selections are
 checked against what each app listed, and the client has no raw HTML or eval sinks.
+
+Added with the live monitor on September 13, 2026, and covered by tests: Slack alerts
+escape recorded text so it cannot form mentions or links, the review link is built from
+the configured address and cannot carry a session or break out of its Slack link, and
+the live view is served from memory for the visitor's own session only.
 
 ## Live Arga attempt: blocked before provisioning
 

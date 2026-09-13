@@ -70,6 +70,14 @@ closes the duplicate, restores the original assignee, and replies in the Slack t
 To test a human edit, change the assignee directly in Linear after reviewing the
 plan. Reset returns to the local scenario; records created in the apps stay there.
 
+While the agent runs, the page shows each recorded action as it happens and flags
+problems as the checks catch them. When the run finishes with problems, Aftercare posts
+an alert to the chosen Slack channel listing them, with a link to review the repair.
+Recorded text in the alert is escaped so it cannot mention the channel or add links, and
+the link is built from the server's configured address without any session identifier,
+so forwarding it grants no access. A failed alert is reported in Activity without undoing
+the run.
+
 Repairs use the same pre-write checks, journal, and read-back verification as twins,
 without atomic protection against an edit between a read and a write. A full live repair
 passed against real GitHub, Linear, and Slack accounts on September 12, 2026; see

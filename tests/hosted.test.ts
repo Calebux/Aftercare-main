@@ -62,6 +62,7 @@ test('a hosted instance gives each visitor a separate workspace and never shares
     const connections = await (await b.send('/api/connections')).text();
     assert.doesNotMatch(connections, /operator/);
     assert.equal(JSON.parse(connections).apps.github.connected, false, 'operator tokens are never inherited');
+    assert.deepEqual(await (await b.send('/api/run/live')).json(), { run: null }, 'a visitor sees only their own run');
     assert.equal((await b.post('/api/connect-live')).status, 409);
     assert.equal((await b.post('/api/connections/slack/token', { token: 'xoxp-user-token' })).status, 422);
 

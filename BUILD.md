@@ -6,7 +6,7 @@ and receipt export. OpenRouter investigation, twin adapters, and live demo-app
 adapters are implemented, and a full repair has passed against real apps; live model
 inference remains unverified.
 
-Validation: 53 automated tests and one browser workflow passed, including
+Validation: 57 automated tests and one browser workflow passed, including
 HTTP route concurrency coverage and desktop/mobile checks. TypeScript checking
 and the production frontend build passed. Arga twin provisioning was blocked on
 September 9, 2026 by account quota; the project is not buying more runs and now

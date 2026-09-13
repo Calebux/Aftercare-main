@@ -107,6 +107,8 @@ app.get('/api/config', (req, res) => withSlot(req, res, slot => res.json({
 
 const connectionsBody = (slot: Slot) => ({ apps: connectionView(slot.connections), ready: Boolean(liveConfigFor(slot.connections)) });
 app.get('/api/connections', (req, res) => withSlot(req, res, slot => res.json(connectionsBody(slot))));
+// Served from memory only, so polling can never trigger provider calls.
+app.get('/api/run/live', (req, res) => withSlot(req, res, slot => res.json({ run: slot.liveRun ?? null })));
 app.get('/api/connections/:provider/resources', (req, res) => withSlot(req, res, async slot => {
   const provider = req.params.provider;
   if (!isProvider(provider)) throw new RecoveryError('Unknown app.', 404);
@@ -164,8 +166,14 @@ app.post('/api/:action', (req, res) => withSlot(req, res, async slot => {
         const config = liveConfigFor(slot.connections);
         if (!config) throw new RecoveryError('Connect GitHub, Linear and Slack, and choose a repository, team and channel first.', 409);
         if (slot.workspace.mode !== 'local' || slot.workspace.plans.length) throw new RecoveryError('Reset the workspace before connecting your apps.');
-        event(slot.workspace, 'Connecting your apps', 'Checking access, then recreating the failed run in your GitHub repository, Linear team and Slack channel.'); persist();
-        await connectLive(slot.workspace, config);
+        event(slot.workspace, 'Running onboarding-agent', 'Checking access, then running the agent through the recorder in your GitHub repository, Linear team and Slack channel.'); persist();
+        slot.liveRun = undefined;
+        await connectLive(slot.workspace, config, fetch, {
+          // Built from the configured address rather than the request, and never carries a session.
+          reviewUrl: publicUrl ?? `http://127.0.0.1:${port}`,
+          pauseMs: 700,
+          onProgress: run => { slot.liveRun = run; },
+        });
         break;
       }
       case 'provision-twins': {

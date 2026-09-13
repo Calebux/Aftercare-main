@@ -1,4 +1,6 @@
 import type { ProviderName, Workspace } from '../shared/types.js';
+import { sendRunAlert } from './alerts.js';
+import type { RunOptions } from './agent.js';
 import { RecoveryError, event, type ProviderAdapter } from './recovery.js';
 import { github, linear, providerAdapter, type Endpoint } from './providers.js';
 import { runOnboardingAgent } from './agent.js';
@@ -53,7 +55,12 @@ export function liveAdapter(config: LiveConfig, fetcher: typeof fetch = fetch): 
 }
 
 /** Checks access to the configured demo resources, then runs the recorded demonstration agent in them. */
-export async function connectLive(w: Workspace, config: LiveConfig, fetcher: typeof fetch = fetch) {
+export interface LiveRunOptions extends RunOptions {
+  /** Where the Slack alert sends reviewers; no alert is posted without it. */
+  reviewUrl?: string;
+}
+
+export async function connectLive(w: Workspace, config: LiveConfig, fetcher: typeof fetch = fetch, options: LiveRunOptions = {}) {
   const gh = endpoint(config, 'github', fetcher);
   const lin = endpoint(config, 'linear', fetcher);
   const { owner, repo } = config.github;
@@ -64,8 +71,17 @@ export async function connectLive(w: Workspace, config: LiveConfig, fetcher: typ
     github: { endpoint: gh, owner, repo },
     linear: { endpoint: lin, teamId: team.id },
     slack: { endpoint: endpoint(config, 'slack', fetcher), channelId: config.slack.channelId },
-  });
+  }, options);
   w.mode = 'live';
   const needsRepair = run.actions.filter(a => a.assessment === 'needs_repair').length;
   event(w, `${run.agent} finished`, `Recorded ${run.actions.length} actions in ${owner}/${repo}, Linear team ${team.key} and Slack channel ${config.slack.channelId}; ${needsRepair} need repair. Approved repairs will write to these apps.`, needsRepair ? 'warning' : 'success');
+  if (needsRepair && options.reviewUrl) {
+    try {
+      await sendRunAlert(endpoint(config, 'slack', fetcher), config.slack.channelId, run, options.reviewUrl);
+      event(w, 'Slack alert sent', `Posted the ${needsRepair} problems to the channel with a link to review the repair.`);
+    } catch (error) {
+      // The run itself succeeded, so a failed alert is reported rather than undoing the run.
+      event(w, 'Slack alert not sent', error instanceof RecoveryError ? error.message : 'Slack could not be reached.', 'warning');
+    }
+  }
 }

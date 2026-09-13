@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Request, Response } from 'express';
-import type { Workspace } from '../shared/types.js';
+import type { AgentRun, Workspace } from '../shared/types.js';
 import { RecoveryError, seedWorkspace } from './recovery.js';
 import type { Connections } from './connections.js';
 
@@ -13,6 +13,8 @@ export interface Slot {
   connections: Connections;
   /** The mutation in progress; conflicting requests from the same visitor are refused. */
   activeAction?: string;
+  /** The agent run in progress, kept in memory for the live view. */
+  liveRun?: AgentRun;
   touched: number;
   persist(): void;
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Activity, ArrowDown, ArrowRight, ArrowUpRight, Check, CheckCheck, ChevronRight, Circle, Clock3, Code2, ExternalLink, FileText, GitBranch, Github, Hash, Layers3, LoaderCircle, LockKeyhole, PanelRightClose, Play, RotateCcw, ShieldCheck, Sparkles, TriangleAlert, X, Zap } from 'lucide-react';
-import type { AppName, RepairOperation, Workspace } from '../../shared/types';
+import type { AgentRun, AppName, RepairOperation, Workspace } from '../../shared/types';
 import { ConnectApps } from './ConnectApps';
 import { AgentRunView } from './AgentRun';
 import { Welcome } from './Welcome';
@@ -20,6 +20,14 @@ function App() {
   const [evidence, setEvidence] = useState<RepairOperation>();
   const [interrupt, setInterrupt] = useState(false);
   const [showReset, setShowReset] = useState(false);
+  const [liveRun, setLiveRun] = useState<AgentRun>();
+  // While the agent runs, poll the in-memory recording so each action appears as it happens.
+  useEffect(() => {
+    if (busy !== 'connect-live') return;
+    setLiveRun(undefined);
+    const timer = setInterval(() => { fetch('/api/run/live').then(r => r.json()).then(body => setLiveRun(body.run ?? undefined)).catch(() => {}); }, 600);
+    return () => clearInterval(timer);
+  }, [busy]);
   // Shown on a first visit; storage can be unavailable, in which case it simply shows again.
   const [showWelcome, setShowWelcome] = useState(() => { try { return localStorage.getItem(WELCOME_SEEN) !== '1'; } catch { return true; } });
   const dismissWelcome = () => { setShowWelcome(false); try { localStorage.setItem(WELCOME_SEEN, '1'); } catch { /* storage unavailable */ } };
@@ -53,6 +61,7 @@ function App() {
       const body = await r.json();
       if (!r.ok) { if (body.workspace) setW(body.workspace); throw new Error(body.error); }
       setW(body);
+      if (name === 'connect-live') setTab('run');
     } catch (e) { setError(e instanceof Error ? e.message : 'Request failed.'); }
     finally { setBusy(''); }
   }
@@ -103,7 +112,8 @@ function App() {
         <div className="page-heading"><div><h1>A clean handoff.<br /><span>Even after a messy run.</span></h1><p>Review the impact. Preserve the good work. Repair the rest.</p></div><button className="button subtle" onClick={() => setShowReset(true)} disabled={!!busy}><RotateCcw size={14} />Reset scenario</button></div>
         {error && <div className="notice danger" role="alert"><TriangleAlert size={17} /><span>{error}</span><button aria-label="Dismiss error" onClick={() => setError('')}><X size={16} /></button></div>}
         {!w ? <div className="loading"><LoaderCircle className="spin" />{error ? 'Workspace unavailable. Reload to try again.' : 'Loading recovery workspace…'}</div> : <>
-          {config.connections === 'enabled' && w.mode === 'local' && !plan && <ConnectApps icon={app => <AppIcon app={app} />} busy={busy === 'connect-live'} onCreate={() => action('connect-live')} />}
+          {busy === 'connect-live' && <section className="decision-card" style={{ marginBottom: 20 }}><div className="small-label">LIVE RUN</div><AgentRunView live run={liveRun} icon={app => <AppIcon app={app} small />} /></section>}
+          {config.connections === 'enabled' && w.mode === 'local' && !plan && busy !== 'connect-live' && <ConnectApps icon={app => <AppIcon app={app} />} busy={busy === 'connect-live'} onCreate={() => action('connect-live')} />}
           <section className="incident-card">
             <div className="incident-top"><div className="incident-title"><span className={`incident-icon ${complete ? 'resolved' : ''}`}>{complete ? <CheckCheck size={20} /> : <GitBranch size={20} />}</span><div><div className="small-label">ONBOARDING WORKFLOW</div><h2>Acme onboarding went off course</h2></div></div><span className={`status-pill ${complete ? 'green' : stale || interrupted ? 'amber' : 'purple'}`}><span />{complete ? 'Recovery verified' : stale ? 'Review needs updating' : interrupted ? 'Recovery interrupted' : approved ? 'Approved to repair' : plan ? 'Ready for review' : 'Needs recovery'}</span></div>
             <p className="incident-description">A duplicate issue, an incorrect owner, and a premature completion message.<br className="desktop-break" /> {w.run ? `${w.run.agent} made ${w.run.actions.filter(a => a.actor === w.run!.agent).length} changes; ${w.run.actions.filter(a => a.assessment === 'needs_repair').length} need repair.` : 'Three successful API calls. One unfinished onboarding.'}</p>

@@ -48,7 +48,14 @@ export function assess(actions: RecordedAction[], task: { owner: string }): Reco
  * the wrong owner. The workspace changes only after every call succeeds; a failed
  * run removes what it created.
  */
-export async function runOnboardingAgent(w: Workspace, t: IncidentTargets): Promise<AgentRun> {
+export interface RunOptions {
+  /** Receives the run after every recorded action, with assessments so far. */
+  onProgress?: (run: AgentRun) => void;
+  /** A pause after each action so people can watch; tests run without it. */
+  pauseMs?: number;
+}
+
+export async function runOnboardingAgent(w: Workspace, t: IncidentTargets, options: RunOptions = {}): Promise<AgentRun> {
   // Owners are restored by name, so members must be distinguishable by it.
   const people = (await linear.users(t.linear.endpoint)).filter((p, i, all) => all.findIndex(q => q.name === p.name) === i);
   const [owner, staleEntry] = people;
@@ -58,8 +65,12 @@ export async function runOnboardingAgent(w: Workspace, t: IncidentTargets): Prom
 
   const startedAt = new Date().toISOString();
   const actions: RecordedAction[] = [];
-  const capture = (actor: string, app: AppName, tool: string, summary: string, before: Fields, after: Fields, outcome: RecordedAction['outcome'] = 'succeeded') =>
+  const task = `Onboard Acme and hand off to ${owner.name}.`;
+  const capture = async (actor: string, app: AppName, tool: string, summary: string, before: Fields, after: Fields, outcome: RecordedAction['outcome'] = 'succeeded') => {
     actions.push({ id: randomUUID(), at: new Date().toISOString(), actor, app, tool, summary, outcome, before, after, assessment: actor === AGENT ? 'expected' : 'setup' });
+    options.onProgress?.({ agent: AGENT, task, mode: 'recorded', startedAt, actions: assess(actions, { owner: owner.name }) });
+    if (options.pauseMs) await new Promise(resolve => setTimeout(resolve, options.pauseMs));
+  };
   const repo = { owner: t.github.owner, repo: t.github.repo };
   const closeIssue = (issueNumber: number) => () => github.writeState(t.github.endpoint, { provider: 'github', ...repo, issueNumber }, 'closed');
   const undo: Array<() => Promise<unknown>> = [];
@@ -67,26 +78,26 @@ export async function runOnboardingAgent(w: Workspace, t: IncidentTargets): Prom
   const attempt = async () => {
     const handoff = await linear.createIssue(t.linear.endpoint, t.linear.teamId, 'Acme onboarding handoff', owner.id);
     undo.push(() => linear.gql(t.linear.endpoint, 'mutation($id:String!){ issueDelete(id:$id){ success } }', { id: handoff.id }, 'removing the issue'));
-    capture('intake', 'Linear', 'linear.create_issue', `Created ${handoff.identifier} “Acme onboarding handoff” for ${owner.name}.`, {}, { issue: handoff.identifier, assignee: owner.name });
+    await capture('intake', 'Linear', 'linear.create_issue', `Created ${handoff.identifier} “Acme onboarding handoff” for ${owner.name}.`, {}, { issue: handoff.identifier, assignee: owner.name });
 
     // The REST API cannot delete issues, so a failed run closes them.
     const canonical = await github.createIssue(t.github.endpoint, repo, TITLE, 'Onboarding task for Acme.');
     undo.push(closeIssue(canonical));
-    capture(AGENT, 'GitHub', 'github.create_issue', `Created issue #${canonical} “${TITLE}”. The response was lost, so the agent was told the call timed out.`, {}, { issue: `#${canonical}`, title: TITLE, state: 'open' }, 'reported_timeout');
+    await capture(AGENT, 'GitHub', 'github.create_issue', `Created issue #${canonical} “${TITLE}”. The response was lost, so the agent was told the call timed out.`, {}, { issue: `#${canonical}`, title: TITLE, state: 'open' }, 'reported_timeout');
     const duplicate = await github.createIssue(t.github.endpoint, repo, TITLE, 'Onboarding task for Acme (retried after a timeout).');
     undo.push(closeIssue(duplicate));
-    capture(AGENT, 'GitHub', 'github.create_issue', `Retried and created issue #${duplicate} “${TITLE}”.`, {}, { issue: `#${duplicate}`, title: TITLE, state: 'open' });
+    await capture(AGENT, 'GitHub', 'github.create_issue', `Retried and created issue #${duplicate} “${TITLE}”.`, {}, { issue: `#${duplicate}`, title: TITLE, state: 'open' });
 
     // In a one-person workspace the stale roster has no entry, so the owner is removed.
     const wrongOwner = staleEntry?.name ?? '';
     const linearRef: ExternalRef = { provider: 'linear', issueId: handoff.id, teamId: t.linear.teamId };
     await linear.writeAssignee(t.linear.endpoint, linearRef, wrongOwner);
-    capture(AGENT, 'Linear', 'linear.update_assignee', wrongOwner ? `Reassigned ${handoff.identifier} to ${wrongOwner} from a stale roster.` : `Removed the owner of ${handoff.identifier}; the stale roster had no entry.`, { assignee: owner.name }, { assignee: wrongOwner });
+    await capture(AGENT, 'Linear', 'linear.update_assignee', wrongOwner ? `Reassigned ${handoff.identifier} to ${wrongOwner} from a stale roster.` : `Removed the owner of ${handoff.identifier}; the stale roster had no entry.`, { assignee: owner.name }, { assignee: wrongOwner });
 
     const message = wrongOwner ? `Acme is ready. Workspace provisioned and handoff assigned to ${wrongOwner}.` : 'Acme is ready. Workspace provisioned and handoff complete.';
     const ts = await slack.post(t.slack.endpoint, t.slack.channelId, message);
     undo.push(() => slack.call(t.slack.endpoint, 'chat.delete', { channel: t.slack.channelId, ts }));
-    capture(AGENT, 'Slack', 'slack.post_message', `Posted “${message}”`, {}, { message });
+    await capture(AGENT, 'Slack', 'slack.post_message', `Posted “${message}”`, {}, { message });
     return { canonical, duplicate, handoff, linearRef, ts, message, wrongOwner };
   };
   const made = await attempt().catch(async (error: unknown): Promise<never> => {
@@ -122,6 +133,6 @@ export async function runOnboardingAgent(w: Workspace, t: IncidentTargets): Prom
   journal(sl.id, links[2][0], { correction: '' }, { ...sl.fields });
   for (const record of w.records) { record.revision = 1; record.lastActor = 'agent'; }
 
-  w.run = { agent: AGENT, task: `Onboard Acme and hand off to ${owner.name}.`, mode: 'recorded', startedAt, finishedAt: new Date().toISOString(), actions: assessed };
+  w.run = { agent: AGENT, task, mode: 'recorded', startedAt, finishedAt: new Date().toISOString(), actions: assessed };
   return w.run;
 }

@@ -81,7 +81,8 @@ export interface AgentRun {
   /** `recorded` from real tool calls; `simulated` for the local scenario. */
   mode: 'recorded' | 'simulated';
   startedAt: string;
-  finishedAt: string;
+  /** Absent while the run is in progress. */
+  finishedAt?: string;
   actions: RecordedAction[];
 }
 export interface AuditEvent { id: string; at: string; title: string; detail: string; kind: 'info' | 'warning' | 'success' }

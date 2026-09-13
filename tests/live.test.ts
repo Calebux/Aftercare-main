@@ -243,3 +243,27 @@ test('the local scenario run matches what the recorder would flag', () => {
   const reassessed = assess(run.actions.map(a => ({ ...a, assessment: a.actor === 'intake' ? 'setup' as const : 'expected' as const, finding: undefined })), { owner: 'Jamie Chen' });
   assert.deepEqual(reassessed.map(a => [a.assessment, a.finding]), run.actions.map(a => [a.assessment, a.finding]));
 });
+
+test('a live run reports each action as it is recorded and alerts Slack when it finishes', async () => {
+  const apps = fakeApps(); const w = seedWorkspace();
+  const progress: Array<[number, number]> = [];
+  await connectLive(w, config, apps.fetcher, {
+    reviewUrl: 'https://aftercare.example',
+    onProgress: run => progress.push([run.actions.length, run.actions.filter(a => a.assessment === 'needs_repair').length]),
+  });
+  assert.deepEqual(progress, [[1, 0], [2, 0], [3, 1], [4, 2], [5, 3]], 'flags appear as the problems happen');
+  const alert = apps.messages.at(-1)!;
+  assert.equal(alert.thread_ts, undefined, 'the alert is not a reply in the agent thread');
+  assert.match(alert.text, /^:warning: Aftercare found 3 changes that need repair/);
+  assert.match(alert.text, /<https:\/\/aftercare\.example\/\|Review the repair in Aftercare>$/);
+  assert.ok(w.events.some(e => e.title === 'Slack alert sent'));
+});
+
+test('a failed Slack alert is reported without undoing the run', async () => {
+  const apps = fakeApps({ respond: (url, body) => url.pathname === '/api/chat.postMessage' && String(body?.text).startsWith(':warning:') ? json({ ok: false, error: 'rate_limited' }) : undefined });
+  const w = seedWorkspace();
+  await connectLive(w, config, apps.fetcher, { reviewUrl: 'https://aftercare.example' });
+  assert.equal(w.mode, 'live');
+  assert.equal(w.events.at(-1)?.title, 'Slack alert not sent');
+  assert.match(w.events.at(-1)?.detail ?? '', /rate_limited/);
+});
