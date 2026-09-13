@@ -1,47 +1,203 @@
 # Aftercare
 
-Recover from failed agent workflows across multiple apps, with evidence and human review.
+When an AI agent fails partway through work across GitHub, Linear, and Slack, Aftercare works
+out what went wrong, prepares a repair that keeps what people changed since, and applies it only
+after a person approves.
 
-## Run
+**Demo video:** _(link to be added)_
+
+[Try it without keys](#try-it-without-accounts-or-keys) · [How it works](#how-it-works) ·
+[Evaluation](#evaluation) · [Judging criteria](#judging-criteria-and-evidence) ·
+[Limitations](#limitations) · [Built before and during the event](#built-before-and-during-the-event)
+
+## The problem
+
+An onboarding agent creates a GitHub issue, but the response is lost, so it retries and creates a
+duplicate. A stale roster makes it assign the Linear handoff to the wrong person. Then it tells
+Slack that everything is done. By the time anyone notices, people have kept working on those records.
+
+The obvious fixes fail:
+
+- **Roll back**, and you overwrite what people changed after the agent.
+- **Retry blindly**, and a write whose response was lost happens twice.
+- **Trust the agent's report**, and you repair what it says it did rather than what it did.
+- **Let a model fix it directly**, and one wrong judgment writes straight into your team's tools.
+
+Recovering a partially completed workflow while preserving later human changes is an established
+engineering problem. Microsoft's [Compensating Transaction pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/compensating-transaction)
+describes it: you "can't always roll back the data because other concurrent application instances
+might change the data," so the compensating transaction "must intelligently account for concurrent
+work," and because compensation itself "can fail," the system "should record progress so that it
+can resume."
+
+Aftercare applies that pattern to records written by AI agents. Here the concurrent work is
+people's, and choosing the compensation takes judgment: a second issue with the same title may be
+a duplicate, or it may be distinct work. Whether teams will pay for Aftercare still needs customer
+validation.
+
+## How it works
+
+```mermaid
+flowchart LR
+  A["Agent<br/>MCP gateway or Recorder API"] --> B["Recorded run<br/>values before and after"]
+  B --> C["Checked against<br/>the apps"]
+  C --> D["AI investigator<br/>read-only tools"]
+  D --> E["Deterministic<br/>policy"]
+  E --> F["Plan with fixed<br/>fields and values"]
+  F --> G["Human approval<br/>bound to app state"]
+  G --> H["Executor<br/>recheck, journal,<br/>write, read back"]
+  H --> I["Receipt"]
+  G -. app changed .-> D
+  H -. record changed .-> D
+```
+
+1. **Capture.** Aftercare records each agent action with its values before and after. Agents
+   connect through the [MCP gateway](#bring-your-own-agent), where Aftercare makes each call so the
+   agent never holds an app token, or report their own calls through the Recorder API. When a run
+   finishes, Aftercare reads every reported record back from the apps and refuses the whole run if
+   anything differs ([server/external.ts:150](server/external.ts#L150)). A run that needs repair
+   posts a Slack alert with a link to review it.
+2. **Investigate.** A tool-calling model reads the journal and the current state of each affected
+   record. For each one it chooses `close_duplicate` or `preserve_issue`, `restore_owner` or
+   `preserve_owner`, and `append_correction` or `preserve_correction`, or it escalates the whole
+   incident with the evidence gap ([server/investigator.ts:9](server/investigator.ts#L9)).
+3. **Validate.** Deterministic policy refuses decisions without scoped evidence, closing an issue
+   whose body changed, restoring an owner a person changed, and a second correction. Missing or
+   conflicting provenance blocks any repair ([server/policy.ts:5](server/policy.ts#L5)). A
+   rejected response gets corrective feedback within the same budgets.
+4. **Compile.** Validated decisions become a plan with fixed fields and values. Aftercare, not the
+   model, writes the Slack correction from the chosen outcomes
+   ([server/recovery.ts:113](server/recovery.ts#L113)).
+5. **Approve.** A person approves one plan version. Aftercare re-reads the apps first, and the
+   approval is bound to a SHA-256 hash of the records, journal, and run, so any change makes the
+   plan stale ([server/recovery.ts:64](server/recovery.ts#L64), [:177](server/recovery.ts#L177)).
+6. **Execute.** Before each write, Aftercare re-reads every affected record from the apps, the
+   write target last. It then saves the operation as running, writes, and reads the value back
+   ([server/recovery.ts:250](server/recovery.ts#L250)). After an interruption it reconciles before
+   anything else. If the app already shows the approved value, the operation is verified without
+   writing again. If the app still shows the reviewed value, the write is retried after the
+   checks. Otherwise the operation stops as uncertain ([server/recovery.ts:209](server/recovery.ts#L209)).
+7. **Receipt.** The exported receipt holds the recorded run, journal, investigation, plan, observed
+   app state, and every event.
+
+### The pattern's requirements, and where Aftercare meets them
+
+| The pattern says | Aftercare | Evidence |
+| --- | --- | --- |
+| "the compensating transaction must intelligently account for concurrent work" | Re-reads the apps before review, approval, and each write. A changed record makes the plan stale, and the next plan keeps the person's value ([recovery.ts:71](server/recovery.ts#L71), [:230](server/recovery.ts#L230)) | Seeded trials: human edit after review 50/50, during a repair 50/50. Live: a Linear reassignment during review was kept (September 12, observed by the operator); an issue edited during review stayed open (September 13, checked through GitHub's API) |
+| "record progress so that it can resume the compensating transaction from the point of failure" | Each operation is saved as running before the app call and marked verified only after read-back; state survives a restart in `.data/` ([recovery.ts:255](server/recovery.ts#L255)) | Crash and restart 50/50 |
+| "A step might run multiple times when retried, so design each step as an idempotent command" | An interrupted write is reconciled by reading the app before any retry; a second approve or execute joins nothing ([recovery.ts:204](server/recovery.ts#L204)) | Lost response 50/50; repeated approval and execution 50/50; live interruption: a single close event on the duplicate (September 12); 0 duplicate effects across 53 writes in real-model evaluations |
+| "A step might not fail immediately but instead get blocked. You might need to implement a timeout mechanism." | 30-second timeout on app requests, with a stalled response reported as HTTP 504; 45 seconds per model request within a two-minute investigation ([providers.ts:26](server/providers.ts#L26), [investigator.ts:45](server/investigator.ts#L45)) | A stalled GitHub response found in a live run, then fixed ([VALIDATION.md](VALIDATION.md)) |
+| "When decisions are high impact or hard to automate reliably, include a human in the decision-making process." | The model only recommends. A person approves one exact plan version against one exact app state ([recovery.ts:177](server/recovery.ts#L177)) | Stale-approval tests and the seeded trials above |
+| "Sometimes manual intervention is the only way to recover from a failed step. In these situations, the system should raise an alert" | Conflicting provenance produces a durable escalation naming the gap; a write that can't be verified stops further writes; a run needing repair alerts Slack ([policy.ts:5](server/policy.ts#L5), [recovery.ts:225](server/recovery.ts#L225)) | Missing evidence 50/50; conflicting owners escalated in 3/3 development and 3/3 holdout trials |
+| "ensure that you can correlate and audit both the original operation and its compensation end-to-end" | Each repair operation cites the recorded action it compensates, and the receipt holds both ([policy.ts:29](server/policy.ts#L29)) | Receipts from live runs ([VALIDATION.md](VALIDATION.md)) |
+| "you can't safely or meaningfully undo some operations, such as external side effects" | Compensation doesn't pretend to undo: the duplicate is closed rather than deleted, and Slack gets a threaded correction while the original message stays unedited ([providers.ts:172](server/providers.ts#L172)) | Live runs, September 12–13 |
+
+Quotes are from Microsoft's page, accessed September 13, 2026.
+
+### Trust boundaries
+
+**The AI investigator** can read the recorded run and the affected records, then submit decisions or
+escalate. It can't approve, execute, choose a field or value, call an API, or read outside the
+incident. Text inside app data is treated as data. It gets 8 rounds, 20 tool calls, 45 seconds per
+request, and two minutes in total ([server/investigator.ts:45](server/investigator.ts#L45)).
+
+**Outside agents** get four actions: create a GitHub issue, create a Linear issue, change a Linear
+assignee, and post to Slack. Those actions are limited to the connected repository, team, and
+channel ([server/mcp.ts:16](server/mcp.ts#L16)). Keys are `aft_` followed by 32 random bytes, and
+Aftercare keeps only their SHA-256 hash, in memory. It accepts a key only in the `Authorization`
+header, and keys can be revoked ([server/sessions.ts:55](server/sessions.ts#L55)). A run holds at
+most 20 actions, and a workspace allows 120 agent requests a minute. Control characters are refused,
+Aftercare writes the action summaries itself, Slack text is escaped, and requests from other
+origins are refused.
+
+**Hosted visitors** each get a separate workspace, and their tokens stay in server memory. The
+operator's tokens are never used for visitors, and AI is off unless the operator turns it on.
+Unknown Host headers get HTTP 421, and pages can't be framed
+([server/index.ts:55](server/index.ts#L55)). A security review reproduced and fixed five findings
+([VALIDATION.md](VALIDATION.md#security-review-september-12-2026)).
+
+## Evaluation
+
+Each layer is reported separately with its actual denominators, and failures and baselines are kept.
+
+| Layer | What it measures | Result |
+| --- | --- | --- |
+| [Seeded recovery-engine trials](EVALUATION.md) | 9 failure scenarios against simulated GitHub, Linear, and Slack APIs that also hold unrelated records. Each trial is scored by final app state and the requests the apps handled, never by Aftercare's own claims | **450/450** (50 per scenario) |
+| [Real-model investigator, development](EVALUATION-MODEL.md) | `deepseek/deepseek-v4-flash`, 9 cases × 3 trials, on simulated app state | **27/27**; the first run scored 8/27 and is [kept](EVALUATION-MODEL-BASELINE.md) |
+| [Frozen holdout](EVALUATION-HOLDOUT.md) | 4 new cases, frozen with hashes of the cases, scorer, and implementation before a single model run | **10/12**; both failures were safe |
+| [Live accounts](VALIDATION.md) | Real GitHub, Linear, and Slack accounts, with GitHub checked independently through its public API | Acceptance cases 1–4 of 5 passed; the recorded agent's run and AI-investigated repair passed |
+| Regression tests | Engine, investigator, provider clients, sessions, HTTP, and outside agents; browser workflow on desktop and mobile | **79/79** tests; **2/2** browser workflows |
+
+What the evaluation caught:
+
+- **Partial outage, 0/25 on the first harness run.** A write the app refused left the plan uncertain
+  permanently. The write is now retried when the app still shows the reviewed value, and the
+  scenario passes 50/50.
+- **Hostile content, 12/25.** Linear member names reached Slack unescaped. They're escaped now, and
+  the scenario passes 50/50.
+- **Holdout failures, kept as failures.** Once the model kept a true duplicate open, which was safe
+  (2 writes instead of 3). Once it asked to read a record outside the incident, which ends the
+  investigation instead of returning corrective feedback. Fixing either needs a new frozen holdout,
+  because this one won't be rerun.
+- **Live runs found five problems,** including Linear's AI agent listed as a user and a GitHub
+  response that stalled. All five were fixed ([VALIDATION.md](VALIDATION.md#first-live-run-september-12-2026)).
+
+## Judging criteria and evidence
+
+| Criterion | Evidence |
+| --- | --- |
+| Technical execution (30%) | The capture, investigate, validate, approve, and execute pipeline above; GitHub REST, Linear GraphQL, and Slack Web API clients used against real accounts; an MCP gateway (JSON-RPC over streamable HTTP) and a Recorder API for outside agents; isolated per-visitor hosted mode. TypeScript end to end: an Express server, a React client, and shared types |
+| Reliability & evaluation (25%) | 450/450 seeded trials scored by app state; 27/27 real-model development trials with the 8/27 baseline kept; a 10/12 frozen holdout with both failures kept; live acceptance cases 1–4 of 5 passed; 79 tests and 2 browser workflows; defects the evaluation found were fixed and given regression tests |
+| Usefulness (20%) | For teams whose agents write to shared tools. Connect an agent through MCP, watch its actions live, get a Slack alert when a run needs repair, approve a repair that keeps people's changes, and keep a receipt. The built-in agent's full loop ran on real accounts. Willingness to pay is not yet validated |
+| Originality (15%) | Compensating transactions for agent-written SaaS records, where choosing the compensation needs judgment. The model chooses among bounded repairs or preservation, and deterministic policy plus a human approval bound to app state gate that choice. The gateway both limits an agent's reach and checks its reported work against the apps. Public documentation reviewed on September 9 didn't describe this combination ([BUILD.md](BUILD.md#research-checked-september-9-2026)); that shows distinct positioning, not proof that nobody has built it privately |
+| Demo clarity (10%) | Sample data that needs no keys, with a welcome screen; incident variants for distinct work, conflicting owners, and an existing correction; an in-app Evaluation view; a [two-minute script](DEMO.md); the video above |
+
+## Try it without accounts or keys
 
 ```sh
 npm install
-npm run dev
+npm test                        # 79 tests
+npm run eval                    # 9 failure scenarios × 25 seeded trials
+npm run eval:holdout -- --mock  # checks the frozen holdout's scorer; no model calls
+npm run dev                     # then open http://127.0.0.1:4310
 ```
 
-Open http://127.0.0.1:4310.
+After `npm install`, each of the three checks finished in under a second on a laptop.
 
-## What works in this first slice
+In the app, choose **See it on sample data**, then:
 
-The React/TypeScript workspace talks to a local Express recovery engine. It prepares
-exact repair plans, binds approvals to plan versions and state snapshots, detects
-later human edits, persists a journal, reconciles an interrupted write, verifies
-outcomes, and exports receipts. State survives server restart in `.data/`.
+1. Prepare the repair. Each proposed change links to its evidence.
+2. **Simulate a human edit.** Approval is now blocked.
+3. **Review updated plan.** The new plan keeps the person's change.
+4. Tick **Interrupt after the first write**, approve, and choose **Apply approved repair**.
+5. **Reconcile & resume.** Aftercare reads the write back and doesn't repeat it.
+6. **Export recovery receipt**, then open **Evaluation**.
 
-Try: prepare a repair → simulate a human edit → review the new plan → enable the
-interruption challenge → approve → apply → reconcile and resume → export receipt.
+Before preparing, use **Explore a different incident** to try distinct work, conflicting owners, or
+an existing correction. Without an OpenRouter key, the app uses scenario rules and labels them as
+such; they check structure only and don't judge meaning.
 
-## OpenRouter investigator
+To check the build and browser workflows:
 
-Add `OPENROUTER_API_KEY` to the ignored local `.env` file and restart the server.
-Optionally set `OPENROUTER_MODEL` to a provider/model ID that supports function tools;
-a blank value is rejected by OpenRouter, so set one explicitly. The key stays on the server.
+```sh
+npm run build
+npx playwright install chromium
+npm run test:ui
+```
 
-With a key configured, preparing a plan runs a bounded tool-calling investigator:
-read the action journal → inspect all three current app records → submit a scoped
-recommendation or escalate. Deterministic policy validation rejects unsupported
-actions, missing evidence, skipped reads, and attempts to overwrite human decisions.
-The model cannot approve or execute changes. Requests are limited to eight rounds,
-20 tool calls, and a two-minute investigation budget. Live model inference and the recorded
-demo flow passed on September 13, 2026; see [VALIDATION.md](VALIDATION.md). Automated
-regression tests use stub responses; repeated real-model results are reported separately below.
+## AI investigation
 
-Without a key the UI uses explicitly labeled scenario rules.
+Add `OPENROUTER_API_KEY` to the ignored local `.env` file and restart the server. You can set
+`OPENROUTER_MODEL` to a provider/model ID that supports function tools; the evaluations used
+`deepseek/deepseek-v4-flash`. OpenRouter rejects a blank value, so either set one or leave the
+variable out. The key stays on the server. Automated regression tests use stubbed responses, and
+real-model results are reported separately under [Evaluation](#evaluation).
 
-## Live demo apps
+## Connect real apps
 
-Aftercare can repair real GitHub, Linear, and Slack records in free accounts you
-control. Use dedicated demo resources: every connection creates records in them.
+Aftercare can repair real GitHub, Linear, and Slack records in free accounts you control. Use
+dedicated demo resources, because every connection creates records in them.
 
 1. **GitHub:** create a repository such as `aftercare-demo`. Create a fine-grained
    personal access token limited to that repository with **Issues: Read and write**.
@@ -53,36 +209,84 @@ control. Use dedicated demo resources: every connection creates records in them.
    `channels:history`, install it, and copy the `xoxb-` bot token. Create a public
    channel such as `#customer-onboarding`.
 
-Paste each token into **Connect your apps** and choose a repository, team, and
-channel; Aftercare joins the channel for you. On your own machine you can instead
-set the six `AFTERCARE_*` values from `.env.example` in the ignored local `.env`
-and restart (invite the app to the channel yourself). The names are prefixed so a
-broad `GITHUB_TOKEN` or `SLACK_BOT_TOKEN` in your shell is never used. Scenario-only
-runs, including the test suites, never connect to real apps.
+Paste each token into **Connect your apps** and choose a repository, team, and channel; Aftercare
+joins the channel for you. On your own machine you can instead set the six `AFTERCARE_*` values
+from `.env.example` in the ignored local `.env` and restart (invite the app to the channel
+yourself). The names are prefixed so a broad `GITHUB_TOKEN` or `SLACK_BOT_TOKEN` in your shell is
+never used. Scenario-only runs, including the test suites, never connect to real apps.
 
-**Run onboarding-agent in my apps** checks access with reads, then runs a demonstration
-agent through Aftercare's recorder. Intake creates the Linear handoff issue. The agent
-creates the GitHub issue, but the response is lost, so it retries and creates a
-duplicate. A stale roster makes it reassign the handoff, or remove the owner in a
-one-person workspace, and it then announces completion in Slack. The recorder captures
-every call with the values before and after it, and the **Agent run** tab marks the
-three changes that need repair. After approval, a repair
-closes the duplicate, restores the original assignee, and replies in the Slack thread.
-To test a human edit, change the assignee directly in Linear after reviewing the
-plan. Reset returns to the local scenario; records created in the apps stay there.
+**Run onboarding-agent in my apps** checks access with reads, then runs a demonstration agent
+through Aftercare's recorder. Intake creates the Linear handoff issue. The agent creates the GitHub
+issue, but the response is lost, so it retries and creates a duplicate. A stale roster makes it
+reassign the handoff, or remove the owner in a one-person workspace, and it then announces
+completion in Slack. The **Agent run** tab shows every call with its values before and after and
+marks the three changes that need repair. After approval, the repair closes the duplicate, restores
+the original assignee, and replies in the Slack thread. To test a human edit, change the assignee
+directly in Linear after reviewing the plan. Reset returns to the local scenario; records created in
+the apps stay there.
 
-While the agent runs, the page shows each recorded action as it happens and flags
-problems as the checks catch them. When the run finishes with problems, Aftercare posts
-an alert to the chosen Slack channel listing them, with a link to review the repair.
-Recorded text in the alert is escaped so it cannot mention the channel or add links, and
-the link is built from the server's configured address without any session identifier,
-so forwarding it grants no access. A failed alert is reported in Activity without undoing
-the run.
+When the run finishes with problems, Aftercare posts an alert to the chosen Slack channel listing
+them, with a link to review the repair. Recorded text in the alert is escaped so it can't mention
+the channel or add links. The link is built from the server's configured address without any session
+identifier, so forwarding it grants no access. If the alert fails, Activity reports it and the run
+stays intact.
 
-Repairs use the same pre-write checks, journal, and read-back verification as twins,
-without atomic protection against an edit between a read and a write. A full live repair
-passed against real GitHub, Linear, and Slack accounts on September 12, 2026; see
-[VALIDATION.md](VALIDATION.md).
+## Bring your own agent
+
+Record an outside agent's work with a workspace **agent key** from the **Bring your own agent**
+panel. The key is shown once and kept only as a hash in server memory. Aftercare accepts it only in
+the `Authorization: Bearer` header, you can revoke it, and a restart invalidates it.
+
+**MCP gateway** (`POST /mcp`, streamable HTTP with JSON responses). The agent calls `start_run`,
+then `github_create_issue`, `linear_create_issue`, `linear_update_assignee`, and
+`slack_post_message`, then `finish_run`. Aftercare makes each call with the workspace's own
+connections, so the agent never holds an app token.
+
+```sh
+claude mcp add --transport http aftercare http://127.0.0.1:4310/mcp --header "Authorization: Bearer aft_..."
+AFTERCARE_AGENT_KEY=aft_... npm run agent:example -- "Owner name"   # a deliberately faulty example agent
+```
+
+**Recorder API.** The agent makes its own calls and reports them:
+
+- `POST /api/agent/runs` with `{ agent, task, owner }`
+- `POST /api/agent/runs/current/actions` with one of `github.create_issue { issue, title, body, outcome }`,
+  `linear.create_issue { issue, title, assignee }`, `linear.update_assignee { issue, before, after }`,
+  or `slack.post_message { ts, text }`
+- `POST /api/agent/runs/current/finish`, or `/discard`
+
+When a run finishes, Aftercare reads every reported record back from the apps and refuses the whole
+run if anything differs. A run matching the supported onboarding incident (a repeated create, a
+wrong owner, and a premature announcement) opens in the normal investigation, approval, repair, and
+receipt flow, and sends the Slack alert. Other runs are recorded and assessed but can't be repaired
+yet. The safeguards are listed under [Trust boundaries](#trust-boundaries). Both interfaces are
+covered by offline tests and were smoke-tested over local HTTP with the example agent; neither has
+yet run against real accounts.
+
+## Evaluate
+
+```sh
+npm run eval                          # 25 seeded trials per scenario
+npm run eval -- --trials 50 --write   # updates EVALUATION.md and eval/results.json
+npm run eval:agent -- --mode mock --trials 3 --write  # scripted harness control
+npm run eval:agent -- --mode model --trials 3 --write # real OpenRouter calls; simulated app state
+npm run eval:holdout -- --mock        # frozen holdout scorer check; no model calls
+```
+
+The engine suite runs the recorded agent and a repair through nine scenarios: a correct repair,
+human edits after review and during a repair, a crash and restart, a lost response, a partial
+outage, hostile content, repeated requests, and missing evidence. No model is called.
+
+The investigator suite runs nine cases: normal recovery, a later human edit, lost responses, missing
+evidence, malicious source content, distinct work, conflicting ownership, an accurate existing
+correction, and a conflicting correction. `--mode model` uses the configured OpenRouter key, costs
+inference, and sends only synthetic fixtures; it never loads app connections. A terminal policy
+rejection counts as a failed trial even when it prevents an unsafe write. Rejected intermediate
+responses are counted separately. The [scripted control](EVALUATION-MOCK.md) tests the harness, not
+the model.
+
+The frozen holdout refuses to run again; its one run is recorded in
+[EVALUATION-HOLDOUT.md](EVALUATION-HOLDOUT.md).
 
 ## Let others try it
 
@@ -117,160 +321,61 @@ There are no accounts or sign-in, and at most 200 sessions stay active. If you s
 `AFTERCARE_HOSTED_AI=1`, anyone with the link can run investigations on your
 OpenRouter key, so use a key with a spending limit.
 
-## Arga twins
+## Arga twins (optional)
 
-Arga twins are optional and need available Arga validation runs; live demo apps do not.
-Repairs can execute against provisioned Arga twins instead of the local scenario.
-Provider tokens can be supplied through `ARGA_GITHUB_TOKEN`,
-`ARGA_LINEAR_TOKEN`, and `ARGA_SLACK_TOKEN` in the ignored local `.env`. The code
-attempts to mint a GitHub installation token when none is configured; that path
-has only been tested offline. The MCP endpoint and credential are
-read from `ARGA_MCP_URL`/`ARGA_MCP_AUTHORIZATION`, falling back to the `arga-context`
-entry in the operator's local Codex configuration. No secret belongs in this repository.
+Repairs can also run against provisioned Arga twins, which need available Arga validation runs;
+connecting real apps does not. With an MCP credential (`ARGA_MCP_URL` and `ARGA_MCP_AUTHORIZATION`,
+or the `arga-context` entry in the operator's local Codex configuration) and no live apps connected,
+the UI offers **Provision twins**. That requests one twin run per provider, recreates the failed
+onboarding in them, and applies the same refresh, per-write checks, and read-back as live apps.
+Provider tokens can be set with `ARGA_GITHUB_TOKEN`, `ARGA_LINEAR_TOKEN`, and `ARGA_SLACK_TOKEN`.
+An expired twin refuses writes instead of falling back to the simulation. These adapters are tested
+offline only: provisioning was blocked by Arga account quota on September 9, 2026 (see
+[VALIDATION.md](VALIDATION.md#live-arga-attempt-blocked-before-provisioning)).
 
-With the MCP credential configured and live demo apps not configured, the UI offers **Provision twins**, which requests one
-run per provider, recreates the failed onboarding inside them, and rebinds the
-workspace records to what was actually created. Preparation and approval refresh
-the affected twin fields before review or approval. Execution rechecks all affected records before each write and verifies
-provider state again before declaring completion. An external change stops the
-remaining repair, and a fresh plan preserves the updated assignment. Completed
-changes that already match the new plan are not repeated. These checks do not
-provide atomic protection against a provider edit between a read and write.
+## Limitations
 
-Aftercare requests one twin per run with a default ten-minute session, subject to
-the account’s quota. The three runs are provisioned sequentially and then used
-together against the same short clock. An expired binding
-refuses writes rather than falling back to the simulation.
+- **One supported incident.** Aftercare repairs a repeated create, a wrong owner, and a premature
+  announcement across GitHub, Linear, and Slack. Other outside-agent runs are recorded and checked
+  but not repairable. Compensation logic is application-specific, as the pattern itself notes.
+- **No atomic compare-and-update.** Providers don't offer it here, so an edit between the final read
+  and a write can still be overwritten. Reading the write target last narrows that gap but doesn't
+  close it.
+- **Compensation can't retract what happened.** Notifications that were sent and messages people
+  already read stay that way.
+- **Small evaluation sets.** Model judgment was measured on small authored sets from one workflow
+  family: the 27 development trials reused cases while the investigator was being improved, and the
+  holdout is 4 cases × 3 trials. The policy is not a semantic oracle, and GitHub comments and
+  attachments aren't analyzed.
+- **Simulated app state in the harness.** Simulated evaluations use in-memory apps with the real
+  APIs' request and response shapes. Four of the five live acceptance cases are recorded as passed.
+- **Outside-agent interfaces are untested on real accounts.** The MCP gateway and Recorder API have
+  run offline and over local HTTP only, with the example agent as the only tested client.
+- **Single server process.** Agent keys, hosted visitors' tokens, and the execution lock live in one
+  process's memory. A restart invalidates keys and asks visitors to reconnect. There are no user
+  accounts or production authorization.
+- **No customer validation yet.** Willingness to pay and adoption are still unknown.
 
-## Current limits
+## Built before and during the event
 
-Unless demo apps or twins are connected, GitHub, Linear, and Slack records are local
-simulations. There is no production identity, authorization, multi-user database, or
-live-provider concurrency enforcement. The default server binds to localhost; the
-explicit hosted setup above enables isolated visitor sessions, not production identity or authorization.
+Aftercare was started before the event, and its git history is the record. The first commit is from
+September 9, 2026. Everything through commit `45353f0` (8:49 AM Pacific on September 13) predates
+the 9:00 AM opening. That covers the recovery engine, the live app clients, hosted mode and its
+security fixes, the AI investigator, the evaluations, and the frozen holdout.
 
-Four of five live acceptance cases have passed against real accounts. The
-earlier Arga attempt on September 9, 2026 was blocked when Arga’s provisioning API
-reported zero validation runs remaining and MCP provisioning returned an internal
-session error. See [VALIDATION.md](VALIDATION.md) for the exact results and remaining
-acceptance cases.
+Built at the event, starting at 9:22 AM Pacific:
 
-## Evidence-dependent investigation
+- the MCP gateway and the Recorder API;
+- workspace agent keys;
+- the **Bring your own agent** panel;
+- the example MCP agent and the tests for all of the above (commits `37d8c50` and `e5ab8a2`);
+- this README's judge-facing sections.
 
-The model chooses `close_duplicate` or `preserve_issue`, `restore_owner` or
-`preserve_owner`, and `append_correction` or `preserve_correction`; it can also
-escalate the entire incident with an explanation. Those validated decisions compile
-into the repair plan. The executor still controls exact fields, values, write order,
-approval, and read-back; model output never supplies arbitrary write payloads.
+## More detail
 
-Before preparing a local sample, use **Explore a different incident** to choose a
-redundant issue, distinct work, conflicting ownership evidence, or an existing correction.
-With AI enabled, the investigator compares source content and current observations.
-With AI disabled, explicitly labeled rules provide conservative structural checks;
-they do not evaluate semantic equivalence.
-
-New recorded live runs capture the GitHub issue body. Preparation and approval refresh
-it and the canonical issue body; execution rechecks those evidence fields before each
-write. A changed body blocks closure. Ownership provenance conflicts require escalation;
-existing corrections cannot receive a second correction. Escalation survives reload and
-invalidates any previous review. Old saved incidents without recorded body evidence retain
-the earlier, narrower checks; create a fresh incident to demonstrate content checks.
-
-The model must judge whether unchanged content represents distinct work and whether an
-existing correction is accurate. The policy is not a semantic oracle. GitHub comments,
-attachments, and unrelated production telemetry are outside the current evidence scope.
-
-Live repair cards link directly to provider records. Receipts now include the source
-journal, recorded run, investigation, plan, observed app state, and activity.
-See [DEMO.md](DEMO.md) for the two-minute demonstration and [SYSTEM.md](SYSTEM.md)
-for the architecture and reliability brief.
-
-## Bring your own agent
-
-Record an outside agent's work in two ways, both with a workspace **agent key** from the
-**Bring your own agent** panel. The key is shown once, kept only as a hash in server memory,
-accepted only in the `Authorization: Bearer` header, and revocable; a restart invalidates it.
-
-**MCP gateway** (`POST /mcp`, streamable HTTP with JSON responses). The agent calls
-`start_run`, then `github_create_issue`, `linear_create_issue`, `linear_update_assignee`,
-and `slack_post_message`, then `finish_run`. Aftercare makes each call with the workspace's
-own connections, so the agent never holds an app token.
-
-```sh
-claude mcp add --transport http aftercare http://127.0.0.1:4310/mcp --header "Authorization: Bearer aft_..."
-AFTERCARE_AGENT_KEY=aft_... npm run agent:example -- "Owner name"   # a deliberately faulty example agent
-```
-
-**Recorder API.** The agent makes its own calls and reports them:
-
-- `POST /api/agent/runs` with `{ agent, task, owner }`
-- `POST /api/agent/runs/current/actions` with one of `github.create_issue { issue, title, body, outcome }`,
-  `linear.create_issue { issue, title, assignee }`, `linear.update_assignee { issue, before, after }`,
-  or `slack.post_message { ts, text }`
-- `POST /api/agent/runs/current/finish`, or `/discard`
-
-When a run finishes, Aftercare reads every reported record back from the apps and refuses the
-whole run if anything differs. A run matching the supported onboarding incident (a repeated
-create, a wrong owner, and a premature announcement) opens in the normal investigation,
-approval, repair, and receipt flow, and sends the Slack alert. Other runs are recorded and
-assessed but are not yet repairable.
-
-Safeguards: actions are limited to the connected repository, team, and channel, and Linear
-issues are checked against the team; inputs are bounded and validated, and control characters
-are refused; summaries are written by Aftercare rather than the agent; Slack text is escaped;
-a run holds at most 20 actions; a workspace allows 120 agent requests a minute; and agent
-routes ignore cookies and refuse other origins. Only these four actions are supported; the
-gateway offers no arbitrary API calls.
-
-## Evaluate
-
-```sh
-npm run eval                          # 25 seeded trials per scenario
-npm run eval -- --trials 50 --write   # updates EVALUATION.md and eval/results.json
-npm run eval:agent -- --mode mock --trials 3 --write  # scripted harness control
-npm run eval:agent -- --mode model --trials 3 --write # real OpenRouter calls; simulated app state
-```
-
-Nine scenarios run the recorded agent and a repair against simulated GitHub, Linear, and
-Slack that also hold unrelated records: a correct repair, human edits after review and
-during a repair, a crash and restart, a lost response, a partial outage, hostile content,
-repeated requests, and missing evidence. Each trial is judged by the apps' final state and
-the requests they actually handled. No model is called in that suite. Results are in
-[EVALUATION.md](EVALUATION.md).
-
-The separate investigator suite runs nine cases: normal recovery, a later human edit,
-lost responses, missing evidence, malicious source content, distinct work, conflicting
-ownership, an accurate existing correction, and a conflicting correction. It reports
-correct outcomes, human preservation, duplicate effects, and investigation latency with
-actual denominators. `--mode model` uses the configured OpenRouter key and model, incurs
-inference charges, and sends only synthetic fixtures; it never loads app connections.
-
-[Real-model results](EVALUATION-MODEL.md) and [scripted control](EVALUATION-MOCK.md) are
-separate artifacts. Both use independent in-memory app state. Terminal policy rejections count
-as failed agent trials, even when they prevent unsafe writes. Rejected intermediate
-responses are reported separately; bounded feedback lets the model correct them or
-escalate within the original eight-round, twenty-call, two-minute budget. Partial runs retain their
-completed denominators. The UI's Evaluation view keeps these separate from recovery-engine
-results and the [live-account acceptance record](VALIDATION.md).
-
-A separate four-case holdout was frozen, with its expected outcomes and the implementation,
-before the model ran it once: 10/12 trials passed, and both failures were safe. Check its
-scorer with `npm run eval:holdout -- --mock` (no model calls). The frozen suite refuses to run
-again; see [EVALUATION-HOLDOUT.md](EVALUATION-HOLDOUT.md).
-
-## Verify
-
-```sh
-npm test
-npm run build
-npx playwright install chromium
-npm run test:ui
-```
-
-Tests exercise stale approvals, human edits between provider writes, transport
-failures after accepted writes, concurrent requests, refreshed twin approvals,
-GitHub, Linear, and Slack API request shapes,
-missing evidence, and the complete browser recovery workflow. Failed writes remain
-available for reconciliation without restarting the server; conflicting workspace
-mutations are rejected while a request is running. These establish local
-adapter behavior only; see [BUILD.md](BUILD.md) for the live-integration acceptance cases.
+- [SYSTEM.md](SYSTEM.md): architecture and reliability brief
+- [VALIDATION.md](VALIDATION.md): live-account runs, security review, and the problems found
+- [EVALUATION.md](EVALUATION.md), [EVALUATION-MODEL.md](EVALUATION-MODEL.md),
+  [EVALUATION-HOLDOUT.md](EVALUATION-HOLDOUT.md): evaluation results
+- [DEMO.md](DEMO.md): two-minute demonstration script and local walkthrough recording
+- [BUILD.md](BUILD.md): product decisions, research, and acceptance cases
