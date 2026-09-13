@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aftercare — live MCP recovery demo</title>
+<meta name="description" content="Watch Aftercare recover a real MCP agent run across GitHub, Linear, and Slack while preserving a later edit.">
+<style>
+  *{box-sizing:border-box}body{margin:0;background:#f8f9f5;color:#272a2e;font:16px/1.65 system-ui,sans-serif}main{max-width:1120px;margin:auto;padding:36px 24px 56px}nav{display:flex;justify-content:space-between;gap:20px;margin-bottom:40px}a{color:#6856be;text-underline-offset:4px}nav>a:first-child{font-size:24px;font-weight:750;text-decoration:none;color:#272a2e}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-1.5px;line-height:1.15;margin:0 0 18px}p{max-width:800px}.eyebrow{color:#6856be;font-size:12px;font-weight:700;letter-spacing:1.5px}video{width:100%;display:block;border:1px solid #dedfd8;border-radius:12px;background:#211c32;margin:26px 0 20px}.details{font-size:14px;color:#666a62}.links{display:flex;flex-wrap:wrap;gap:12px 24px}footer{border-top:1px solid #dedfd8;margin-top:32px;padding-top:18px;font-size:13px;color:#666a62}
+</style>
+<main>
+  <nav><a href="/">aftercare.</a><a href="https://github.com/Calebux/Aftercare">Source &amp; evaluation ↗</a></nav>
+  <p class="eyebrow">LIVE MCP RUN · GITHUB + LINEAR + SLACK</p>
+  <h1>The agent told Slack it was done.<br>It wasn't.</h1>
+  <p>Watch Aftercare investigate a failed onboarding, reject a stale approval after an edit,
+    preserve the added work, and resume an interrupted repair.</p>
+  <video controls playsinline preload="metadata" aria-label="Aftercare live MCP recovery demonstration">
+    <source src="/aftercare-demo.mp4" type="video/mp4">
+    <a href="/aftercare-demo.mp4">Download the demo video</a>.
+  </video>
+  <p class="details">1 minute 55 seconds · silent, with on-screen captions. Recorded September 13, 2026
+    against real demo accounts with AI investigation. Agent faults, the teammate edit, and the
+    repair interruption were deliberately injected. Setup and investigation waits were shortened.</p>
+  <div class="links">
+    <a href="/">Try Aftercare</a>
+    <a href="https://github.com/Calebux/Aftercare-demo/issues/32">Inspect the preserved GitHub issue ↗</a>
+    <a href="https://github.com/Calebux/Aftercare/blob/main/evidence/live-mcp-2026-09-13.json">Read the recovery receipt ↗</a>
+    <a href="https://github.com/Calebux/Aftercare/raw/main/client/public/aftercare-demo.mp4">Download from GitHub ↗</a>
+  </div>
+  <footer>One supported onboarding incident family. Frozen model holdouts cover 4 and 5 authored
+    cases, repeated three times on simulated app state; live-account observations are reported separately.</footer>
+</main>
+</html>

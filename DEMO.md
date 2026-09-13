@@ -1,33 +1,105 @@
 # Two-minute demonstration
 
-Use a dedicated repository, Linear team, and Slack channel. Start with a fresh recorded
-incident so GitHub body evidence is captured. Connect apps before recording. Enable the
-configured AI investigator and have the actual provider records open in adjacent tabs.
-The failed onboarding agent is an intentionally fault-injected demonstration; the recovery
-investigator is the model making evidence-dependent decisions. Before recording, create an agent
-key in **Bring your own agent** and have `AFTERCARE_AGENT_KEY=aft_... npm run agent:example -- "Owner name"`
-ready in a terminal beside the browser. Keep the key out of the frame, and revoke it afterward.
+**Published capture:** [Watch the 1:55 live MCP demo](https://aftercare-ynmc.onrender.com/demo.html)
+or [download the MP4](https://github.com/Calebux/Aftercare/raw/main/client/public/aftercare-demo.mp4).
+It records the external MCP example on real apps, two AI investigations, the simulated
+teammate's GitHub edit, blocked approval, preservation, interrupted repair, reconciliation,
+and the exported receipt. Silent with captions; setup and investigation waits shortened.
+See [the exact run and timing](VALIDATION.md#live-mcp-gateway-and-recorded-recovery-september-13-2026).
 
-| Time | Screen and action | Narration |
+The reproducible capture script is `node --import tsx scripts/record-submission.ts --live
+--owner="Connected Linear member"`. It writes to connected demo apps, saves any previous
+inactive workspace before resetting, and keeps the uncut video and receipt under the ignored
+`demo-output/` directory. It refuses to replace an approved or interrupted repair. The final
+submission edit removes setup from the captured recording; no recovery outcome is changed.
+
+The audience is a team whose AI agents write into shared work tools. The story is one
+incident: an agent made a mess across three apps; a person then added useful work; Aftercare
+must repair the mess while keeping that work. The central moment is the blocked approval.
+
+## Ready-to-read script
+
+The timestamps are editing targets, not measured execution times. Leave room to see the
+blocked approval and the changed plan. Read the narration aloud once before recording.
+
+| Time | Screen and action | Exact narration |
 | --- | --- | --- |
-| 0–15s | Run the example agent; show its actions arriving live, then the Slack alert | “Our onboarding agent works through Aftercare’s MCP gateway, so every call is recorded and checked against the apps. It failed halfway through three apps, and Aftercare caught it.” |
-| 15–40s | Investigate, then show the proposed fields and source evidence | “It compares the recorded calls with what the apps contain now. Each proposed change cites its evidence.” |
-| 40–65s | Change the assignee directly in Linear, then try approving | “While it prepared this repair, a teammate changed the owner. That approval is now stale.” |
-| 65–85s | Investigate again; point to the preserved assignment; approve | “The updated plan keeps the teammate’s decision and repairs the remaining records.” |
-| 85–100s | Enable interruption, apply, then reconcile and resume | “The first write succeeded but its response was interrupted. Aftercare reads it back before continuing, so it doesn’t repeat the write.” |
-| 100–112s | Open the GitHub issue, Linear task, and Slack thread from the repair cards | “The issue is closed, the human assignment remains, and the thread has one correction.” |
-| 112–120s | Export the receipt and show Evaluation | “Here are the measured outcomes, including failures. Real-model, simulated-API, and live-account evidence are reported separately.” |
+| 0–12s | Show the duplicate GitHub issues, the missing Linear owner, and the premature Slack announcement. End on Aftercare. | “Your agent says onboarding is done. GitHub has a duplicate, Linear has lost its owner, and Slack has announced success. Who cleans that up?” |
+| 12–26s | Show the recorded run and its flagged actions. Caption: **Real apps · injected agent failures · AI investigation**. | “Aftercare investigates and repairs failed agent workflows across these three apps. We deliberately injected these failures into a recorded run against real accounts. Now watch the recovery.” |
+| 26–43s | Click **Investigate & prepare repair**. Cut the wait with **Investigation wait shortened** on screen. Show the three proposed changes and open evidence for the GitHub decision. | “It reads what the agent did and what the apps contain now. Here, it proposes closing the duplicate, restoring the owner, and adding a correction. Every change needs my approval.” |
+| 43–60s | In the actual duplicate GitHub issue, add **Also migrate the audit logs** to its body and save. Return and click **Approve 3 changes**. Hold on the blocked approval. | “But work doesn't stop while a repair waits. I add a real requirement to the duplicate: migrate the audit logs. Now I try approving the old plan. Aftercare blocks it.” |
+| 60–79s | Click **Review updated plan**. Mark the shortened wait. Show the new preservation decision and its actual explanation. Click **Approve 2 changes** if those are the returned actions. | “It reads the evidence again. The revised plan keeps this issue open because it now contains distinct work. The owner and Slack correction still need repair. I review and approve those two changes.” |
+| 79–96s | Tick **Interrupt after the first write**, then **Apply approved repair**. Caption: **Deliberately interrupted after a provider write**. Show the interruption, then **Reconcile & resume** and its activity event. | “Now I interrupt the repair after a write succeeds. On resume, Aftercare checks the app, recognizes the completed write, and continues without repeating it. Even the recovery can recover.” |
+| 96–111s | Use card links to show the open GitHub issue and added line, restored Linear owner, and one Slack correction. Export the receipt. | “Here's the result in the actual apps: the new work survives, the owner is restored, and Slack has one correction. The receipt records the evidence and outcome.” |
+| 111–120s | Show the compact evaluation card described below, then the product name and URL. | “Our frozen model evaluations scored ten of twelve, then fifteen of fifteen on new cases. Failures stay published. Aftercare repairs agent mistakes while preserving human work.” |
 
-Investigation latency varies. Record the full run, then visibly cut waiting periods in the
-two-minute video; do not imply an edited recording measures real-time latency. Keep the
-uncut recording and receipt available for questions. If the real model refuses or times
-out, show that accurately rather than labeling a rules run as AI.
+If the returned recommendation differs, narrate the observed decision. The script is not a
+reason to relabel an escalation or failed run as a successful repair.
 
-For judge questions, keep the sample scenario picker ready. Distinct work should preserve
-the issue and change the dependent Slack wording; conflicting owners should produce an
-explicit escalation with no approval button; an accurate existing correction should require
-no second post. The real-model evaluation includes a distinct-work case present from creation,
-so a simple “body changed” rule is insufficient to choose the right action.
+### Final evaluation card
+
+Keep this legible; do not scroll through the whole evaluation during the closing sentence.
+
+| Evidence | Result |
+| --- | --- |
+| Live accounts | Recorded acceptance runs; see receipt and VALIDATION.md |
+| Frozen AI holdout v1 · simulated apps | 10/12 · 4 cases × 3 trials |
+| Frozen AI holdout v2 · simulated apps | 15/15 · 5 new cases × 3 trials |
+| V2 human preservation / duplicate side effects | 6/6 eligible trials / 0 across 24 writes |
+| Recovery engine · simulated apps | 450/450 trials · 9 scenarios |
+
+Footnote: **Small authored suites. V2 followed a fix; both reports retained.** These are
+historical results for the implementations recorded in their manifests. The later malformed
+tool-arguments fix has separate validation in VALIDATION.md and no new frozen holdout yet.
+
+## Recording setup
+
+1. Use a dedicated GitHub repository, Linear team, and Slack channel. Connect them before
+   recording and enable the configured AI investigator. Keep credentials out of the recording.
+2. Use a fresh incident from the built-in recorded onboarding agent, which has live-account
+   validation. Capture the run and its resulting records. Open the actual duplicate issue,
+   Linear task, and Slack thread in neighboring tabs; use this run's IDs throughout.
+3. Verify the initial plan proposes closing the duplicate before filming the human edit.
+   This main script follows the GitHub body-edit acceptance run documented in VALIDATION.md.
+4. Record the full investigation and execution, then shorten waits visibly. Keep the uncut
+   recording and downloaded receipt. Never present a rules-based sample as model inference.
+5. Zoom enough that the added line, blocked approval, and preservation decision can be read.
+   Hold the blocked approval for a beat; that is the reveal. End before two minutes.
+6. Upload the final video where judges can view it and replace the README's demo placeholder.
+
+The external MCP example is available through **Bring your own agent** and
+`npm run agent:example`. It has now completed the live run linked above and supplies the
+published video's incident. The shot-by-shot script below the published capture remains
+useful for a narrated recording; rehearse any new run against dedicated demo resources.
+
+If using the alternative Linear reassignment story, update the outcome too: the human's
+assignment stays, the duplicate closes, and Slack gets one correction. Do not mix that
+ending with the GitHub distinct-work story above.
+
+## Judge questions
+
+- **Is this scripted?** The initial incident is deliberately injected. The investigator
+  reads evidence and selects repair, preservation, or escalation. Fixed policy and an
+  approval-bound executor constrain the writes. Show the authored holdout cases with
+  distinct work present from creation: a body-change rule alone cannot decide those cases.
+- **Does the changed issue prove model judgment by itself?** No. A body-change guard also
+  forbids closing it. This scene proves stale-approval protection and the revised recovery
+  flow; the semantic holdout cases supply additional evidence of model judgment.
+- **Why not undo everything?** Later human work can make the original state inappropriate.
+  Point to the added requirement that the repair preserved.
+- **What if it cannot decide?** Show a separately labeled conflicting-ownership sample:
+  escalation, missing evidence explained, and no approval button. An accurate existing
+  correction should be preserved without another post.
+- **Who wants this?** Use actual discovery findings from CUSTOMER-DISCOVERY.md. If no
+  interviews have happened, say demand is unvalidated and name the intended user.
+
+## Optional customer-evidence line
+
+Only after real interviews, replace the 12–26s narration with a short verified finding,
+for example this template with actual values: “Of [N] teams we interviewed, [K] described
+recent manual cleanup across apps. [P] agreed to a pilot. Aftercare investigates and
+repairs those failures.” Retain the on-screen injected-failure disclosure. Identify this
+as a small convenience sample, not a market-wide rate; obtain permission for attributed quotes.
 
 ## Local walkthrough video
 

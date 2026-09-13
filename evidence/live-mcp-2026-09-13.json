@@ -1,0 +1,457 @@
+{
+  "mode": "live",
+  "incidentId": "REC-024",
+  "provenance": "Captured from the demonstration agent’s real tool calls",
+  "investigation": {
+    "summary": "Issue #32 preserved (human added work post-create). Linear AFT-13 owner restored to Caleb Peterson. Slack correction appended to communicate outcomes.",
+    "decisions": [
+      {
+        "recordId": "gh-184",
+        "action": "preserve_issue",
+        "evidenceId": "evt-01",
+        "reason": "Body changed after creation: human added 'Also migrate the audit logs' (revision 2). Policy forbids closing an issue whose body changed post-create."
+      },
+      {
+        "recordId": "lin-93",
+        "action": "restore_owner",
+        "evidenceId": "evt-02",
+        "reason": "Current assignee is '' (agent's value), no human intervention; original owner Caleb Peterson was the intended handoff target per intake create action."
+      },
+      {
+        "recordId": "slack-42",
+        "action": "append_correction",
+        "evidenceId": "evt-03",
+        "reason": "No correction exists. The premature completion message needs a correction reflecting the preserve_issue and restore_owner outcomes."
+      }
+    ],
+    "outcome": "repair",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4-flash",
+    "toolCalls": 6,
+    "completedAt": "2026-09-13T20:41:45.434Z",
+    "rejectedRecommendations": 1
+  },
+  "sourceActions": [
+    {
+      "id": "evt-01",
+      "recordId": "gh-184",
+      "at": "2026-09-13T20:40:23.430Z",
+      "description": "Created issue #32 “Provision Acme workspace”. Repeats #31, which GitHub had already created.",
+      "before": {
+        "canonicalIssue": "#31"
+      },
+      "after": {
+        "state": "open",
+        "canonicalIssue": "#31",
+        "accountId": "acme-01",
+        "body": "Onboarding task for Acme.",
+        "canonicalBody": "Onboarding task for Acme."
+      }
+    },
+    {
+      "id": "evt-02",
+      "recordId": "lin-93",
+      "at": "2026-09-13T20:40:24.034Z",
+      "description": "Changed the owner of AFT-13 from Caleb Peterson to no one. The task names Caleb Peterson as the handoff owner, but the agent set no one.",
+      "before": {
+        "assignee": "Caleb Peterson"
+      },
+      "after": {
+        "assignee": "",
+        "accountId": "acme-01"
+      }
+    },
+    {
+      "id": "evt-03",
+      "recordId": "slack-42",
+      "at": "2026-09-13T20:40:24.758Z",
+      "description": "Posted “Acme is ready. Workspace provisioned and handoff complete.” Announced completion while 2 other changes still needed repair.",
+      "before": {
+        "correction": ""
+      },
+      "after": {
+        "message": "Acme is ready. Workspace provisioned and handoff complete.",
+        "correction": ""
+      }
+    }
+  ],
+  "run": {
+    "agent": "example-onboarding-agent",
+    "task": "Onboard Acme and hand off to Caleb Peterson.",
+    "mode": "recorded",
+    "source": "mcp",
+    "startedAt": "2026-09-13T20:40:19.842Z",
+    "finishedAt": "2026-09-13T20:40:26.210Z",
+    "actions": [
+      {
+        "id": "ea707666-8221-412c-ab2a-ee15316b1c43",
+        "at": "2026-09-13T20:40:21.526Z",
+        "actor": "example-onboarding-agent",
+        "app": "Linear",
+        "tool": "linear.create_issue",
+        "summary": "Created AFT-13 “Acme onboarding handoff” for Caleb Peterson.",
+        "outcome": "succeeded",
+        "before": {},
+        "after": {
+          "issue": "AFT-13",
+          "title": "Acme onboarding handoff",
+          "assignee": "Caleb Peterson"
+        },
+        "assessment": "expected"
+      },
+      {
+        "id": "6ec63eb8-cb56-4dbf-88cb-a560590ebf98",
+        "at": "2026-09-13T20:40:22.838Z",
+        "actor": "example-onboarding-agent",
+        "app": "GitHub",
+        "tool": "github.create_issue",
+        "summary": "Created issue #31 “Provision Acme workspace”.",
+        "outcome": "succeeded",
+        "before": {},
+        "after": {
+          "issue": "#31",
+          "title": "Provision Acme workspace",
+          "body": "Onboarding task for Acme.",
+          "state": "open"
+        },
+        "assessment": "expected"
+      },
+      {
+        "id": "1d09b430-108f-433e-a67f-645ef6929fa7",
+        "at": "2026-09-13T20:40:23.430Z",
+        "actor": "example-onboarding-agent",
+        "app": "GitHub",
+        "tool": "github.create_issue",
+        "summary": "Created issue #32 “Provision Acme workspace”.",
+        "outcome": "succeeded",
+        "before": {},
+        "after": {
+          "issue": "#32",
+          "title": "Provision Acme workspace",
+          "body": "Onboarding task for Acme.",
+          "state": "open"
+        },
+        "assessment": "needs_repair",
+        "finding": "Repeats #31, which GitHub had already created.",
+        "recordId": "gh-184"
+      },
+      {
+        "id": "bc7b1cfc-5e91-41d5-acb8-258fc572cfd1",
+        "at": "2026-09-13T20:40:24.034Z",
+        "actor": "example-onboarding-agent",
+        "app": "Linear",
+        "tool": "linear.update_assignee",
+        "summary": "Changed the owner of AFT-13 from Caleb Peterson to no one.",
+        "outcome": "succeeded",
+        "before": {
+          "issue": "AFT-13",
+          "assignee": "Caleb Peterson"
+        },
+        "after": {
+          "issue": "AFT-13",
+          "assignee": ""
+        },
+        "assessment": "needs_repair",
+        "finding": "The task names Caleb Peterson as the handoff owner, but the agent set no one.",
+        "recordId": "lin-93"
+      },
+      {
+        "id": "6d586494-bdec-4145-b1cb-cbcab4c815c8",
+        "at": "2026-09-13T20:40:24.758Z",
+        "actor": "example-onboarding-agent",
+        "app": "Slack",
+        "tool": "slack.post_message",
+        "summary": "Posted “Acme is ready. Workspace provisioned and handoff complete.”",
+        "outcome": "succeeded",
+        "before": {},
+        "after": {
+          "ts": "1789332025.058359",
+          "message": "Acme is ready. Workspace provisioned and handoff complete."
+        },
+        "assessment": "needs_repair",
+        "finding": "Announced completion while 2 other changes still needed repair.",
+        "recordId": "slack-42"
+      }
+    ]
+  },
+  "plan": {
+    "id": "eb63e1e5-e80b-4e8b-97ed-118864b8a61a",
+    "version": 2,
+    "createdAt": "2026-09-13T20:41:46.285Z",
+    "status": "complete",
+    "snapshot": "e10a12a2a6157ac13c412a0908cc8dadd07fe4c19afb4805bfe81d51c1208f58",
+    "operations": [
+      {
+        "recordId": "gh-184",
+        "app": "GitHub",
+        "title": "Preserve the issue for separate review",
+        "field": "state",
+        "proposed": "open",
+        "reason": "Body changed after creation: human added 'Also migrate the audit logs' (revision 2). Policy forbids closing an issue whose body changed post-create.",
+        "status": "held",
+        "evidenceId": "evt-01",
+        "guards": {
+          "body": "Onboarding task for Acme.\n\nAlso migrate the audit logs",
+          "canonicalBody": "Onboarding task for Acme."
+        },
+        "id": "31c22b55-5bf0-4a77-a118-eda6b79d1856",
+        "expectedRevision": 2,
+        "observed": "open"
+      },
+      {
+        "recordId": "lin-93",
+        "app": "Linear",
+        "title": "Restore the original owner",
+        "field": "assignee",
+        "proposed": "Caleb Peterson",
+        "reason": "Current assignee is '' (agent's value), no human intervention; original owner Caleb Peterson was the intended handoff target per intake create action.",
+        "status": "verified",
+        "evidenceId": "evt-02",
+        "id": "47e89bb8-226e-4061-a78d-862e321ab5dc",
+        "expectedRevision": 1,
+        "observed": ""
+      },
+      {
+        "recordId": "slack-42",
+        "app": "Slack",
+        "title": "Append a correction to the thread",
+        "field": "correction",
+        "proposed": "Correction: onboarding is still pending verification. Track GitHub #31; issue #32 is preserved for separate review. Handoff owner: Caleb Peterson.",
+        "reason": "No correction exists. The premature completion message needs a correction reflecting the preserve_issue and restore_owner outcomes.",
+        "status": "verified",
+        "evidenceId": "evt-03",
+        "id": "becb0163-38f5-4242-bc44-d091cb89d67f",
+        "expectedRevision": 1,
+        "observed": ""
+      }
+    ],
+    "approvedAt": "2026-09-13T20:41:59.416Z"
+  },
+  "records": [
+    {
+      "id": "gh-184",
+      "app": "GitHub",
+      "label": "#32",
+      "title": "Provision Acme workspace",
+      "revision": 2,
+      "lastActor": "human",
+      "fields": {
+        "state": "open",
+        "canonicalIssue": "#31",
+        "accountId": "acme-01",
+        "body": "Onboarding task for Acme.\n\nAlso migrate the audit logs",
+        "canonicalBody": "Onboarding task for Acme."
+      },
+      "external": {
+        "provider": "github",
+        "owner": "Calebux",
+        "repo": "Aftercare-demo",
+        "issueNumber": 32
+      }
+    },
+    {
+      "id": "lin-93",
+      "app": "Linear",
+      "label": "AFT-13",
+      "title": "Acme onboarding handoff",
+      "revision": 2,
+      "lastActor": "aftercare",
+      "fields": {
+        "assignee": "Caleb Peterson",
+        "accountId": "acme-01"
+      },
+      "external": {
+        "provider": "linear",
+        "issueId": "19156b1b-cbe5-4229-aef5-ab786fabf4be",
+        "teamId": "b327404d-64ec-42e0-9f50-a475a921f8ff"
+      }
+    },
+    {
+      "id": "slack-42",
+      "app": "Slack",
+      "label": "#customer-onboarding",
+      "title": "Onboarding marked complete",
+      "revision": 2,
+      "lastActor": "aftercare",
+      "fields": {
+        "message": "Acme is ready. Workspace provisioned and handoff complete.",
+        "correction": "Correction: onboarding is still pending verification. Track GitHub #31; issue #32 is preserved for separate review. Handoff owner: Caleb Peterson."
+      },
+      "external": {
+        "provider": "slack",
+        "channelId": "C0C1AB5V7NZ",
+        "ts": "1789332025.058359"
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "cf364f5b-e15f-4648-90d4-fe0d41046ede",
+      "at": "2026-09-13T20:40:26.210Z",
+      "title": "example-onboarding-agent finished",
+      "detail": "Recorded 5 actions through the MCP gateway and checked them against the apps; 3 need repair.",
+      "kind": "warning"
+    },
+    {
+      "id": "3e816ed7-561b-4ba1-a5c1-950434d4b935",
+      "at": "2026-09-13T20:40:26.503Z",
+      "title": "Slack alert sent",
+      "detail": "Posted the 3 problems to the channel with a link to review the repair.",
+      "kind": "info"
+    },
+    {
+      "id": "bb05b2c3-d125-49ec-b145-96a8c138868d",
+      "at": "2026-09-13T20:40:39.611Z",
+      "title": "AI investigation started",
+      "detail": "OpenRouter will inspect the journal and each app record using scoped, read-only tools.",
+      "kind": "info"
+    },
+    {
+      "id": "94f21d2c-b873-4628-b844-4f0da99235cf",
+      "at": "2026-09-13T20:40:41.499Z",
+      "title": "Investigator tool call",
+      "detail": "Read the recorded agent run and its repair journal.",
+      "kind": "info"
+    },
+    {
+      "id": "d413eb0b-6c91-4ce6-ab62-da3010c67f75",
+      "at": "2026-09-13T20:40:45.154Z",
+      "title": "Investigator tool call",
+      "detail": "Inspected GitHub record #32.",
+      "kind": "info"
+    },
+    {
+      "id": "7ba6fe3d-e694-4f1a-9f47-6548d6dc2113",
+      "at": "2026-09-13T20:40:45.155Z",
+      "title": "Investigator tool call",
+      "detail": "Inspected Linear record AFT-13.",
+      "kind": "info"
+    },
+    {
+      "id": "04f36c8f-861b-4f6e-9796-6ad3e2ac409c",
+      "at": "2026-09-13T20:40:45.155Z",
+      "title": "Investigator tool call",
+      "detail": "Inspected Slack record #customer-onboarding.",
+      "kind": "info"
+    },
+    {
+      "id": "db69765e-ca7d-4375-be2a-1255b564df84",
+      "at": "2026-09-13T20:40:57.550Z",
+      "title": "Repair v1 prepared",
+      "detail": "3 proposed writes, each linked to recorded evidence.",
+      "kind": "info"
+    },
+    {
+      "id": "3cb6c97b-4241-4728-9eef-f5bd0adba59f",
+      "at": "2026-09-13T20:40:57.550Z",
+      "title": "AI recommendation validated",
+      "detail": "REC-024: GitHub issue #32 is a duplicate of #31 → close; Linear AFT-13 owner was wrongly cleared → restore Caleb Peterson; Slack message announced completion prematurely → append correction.",
+      "kind": "success"
+    },
+    {
+      "id": "fb02cf32-4fae-43c4-bb84-a56ece4fc980",
+      "at": "2026-09-13T20:41:18.488Z",
+      "title": "External change observed",
+      "detail": "#32: body changed outside this repair.",
+      "kind": "warning"
+    },
+    {
+      "id": "bc74536f-1414-48d6-9b62-2636b3e020a4",
+      "at": "2026-09-13T20:41:18.488Z",
+      "title": "Approval blocked",
+      "detail": "The app state changed. Prepare and review a new plan before any repair runs.",
+      "kind": "warning"
+    },
+    {
+      "id": "2c73ad8c-c182-4f6c-9d3a-97029047e28f",
+      "at": "2026-09-13T20:41:25.840Z",
+      "title": "AI investigation started",
+      "detail": "OpenRouter will inspect the journal and each app record using scoped, read-only tools.",
+      "kind": "info"
+    },
+    {
+      "id": "011abc44-d819-470a-aa6a-d7efb8d03e74",
+      "at": "2026-09-13T20:41:28.346Z",
+      "title": "Investigator tool call",
+      "detail": "Read the recorded agent run and its repair journal.",
+      "kind": "info"
+    },
+    {
+      "id": "d432cc11-47e5-413a-a977-3c79245950de",
+      "at": "2026-09-13T20:41:28.347Z",
+      "title": "Investigator tool call",
+      "detail": "Inspected GitHub record #32.",
+      "kind": "info"
+    },
+    {
+      "id": "ebb4999b-45ac-4103-84fa-1034046e9281",
+      "at": "2026-09-13T20:41:28.348Z",
+      "title": "Investigator tool call",
+      "detail": "Inspected Linear record AFT-13.",
+      "kind": "info"
+    },
+    {
+      "id": "cad29a89-758f-4687-8f47-4514e55515fd",
+      "at": "2026-09-13T20:41:28.349Z",
+      "title": "Investigator tool call",
+      "detail": "Inspected Slack record #customer-onboarding.",
+      "kind": "info"
+    },
+    {
+      "id": "d1e6d447-702b-4ec9-8750-be7dffb71edf",
+      "at": "2026-09-13T20:41:42.167Z",
+      "title": "Investigator tool call",
+      "detail": "Refused a tool call with malformed arguments; the investigation continued.",
+      "kind": "info"
+    },
+    {
+      "id": "2ecfbc89-8e86-4fc8-80b0-c9457ed3231e",
+      "at": "2026-09-13T20:41:46.286Z",
+      "title": "Repair v2 prepared",
+      "detail": "2 proposed writes, each linked to recorded evidence.",
+      "kind": "info"
+    },
+    {
+      "id": "25abbb7d-97a9-41fa-ae68-c5f3506723bc",
+      "at": "2026-09-13T20:41:46.286Z",
+      "title": "AI recommendation validated",
+      "detail": "Issue #32 preserved (human added work post-create). Linear AFT-13 owner restored to Caleb Peterson. Slack correction appended to communicate outcomes.",
+      "kind": "success"
+    },
+    {
+      "id": "cd8c74c9-a574-49ba-ba83-7f90ba9f06b1",
+      "at": "2026-09-13T20:41:59.416Z",
+      "title": "Repair v2 approved",
+      "detail": "Approval is bound to this plan and the exact app-state snapshot.",
+      "kind": "info"
+    },
+    {
+      "id": "97f9d969-8ff7-4595-afb9-46c10ac1ee1b",
+      "at": "2026-09-13T20:42:04.655Z",
+      "title": "Connection interrupted after a write",
+      "detail": "The provider accepted the write. Resume to reconcile its state before continuing.",
+      "kind": "warning"
+    },
+    {
+      "id": "3f51ceaa-6452-4472-8a6a-8ce41605ed75",
+      "at": "2026-09-13T20:42:11.091Z",
+      "title": "Interrupted write reconciled",
+      "detail": "AFT-13 already contains the approved value. No duplicate write was made.",
+      "kind": "success"
+    },
+    {
+      "id": "d58c26b2-be5d-42ef-9ade-645bdefaac5b",
+      "at": "2026-09-13T20:42:16.518Z",
+      "title": "Slack correction verified",
+      "detail": "#customer-onboarding: correction matches the approved value.",
+      "kind": "success"
+    },
+    {
+      "id": "9ab40603-fec3-49c0-80ae-719666c8f3ad",
+      "at": "2026-09-13T20:42:18.429Z",
+      "title": "Recovery verified",
+      "detail": "2 corrections verified. 1 record preserved without a write.",
+      "kind": "success"
+    }
+  ]
+}

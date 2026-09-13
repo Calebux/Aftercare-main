@@ -64,7 +64,46 @@ missing and invalid keys, other origins, and `GET /mcp`.
 A smoke test over real HTTP issued a key, completed MCP `initialize` and a notification (HTTP
 202), listed the seven tools through the example agent, stopped at `start_run` because no apps
 were connected, never returned the key from the status endpoint, and refused the key after
-revocation. Neither feature has run against real accounts yet.
+revocation. The MCP gateway subsequently completed the real-account run below; the separate
+Recorder API still has no live-account validation.
+
+### Live MCP gateway and recorded recovery: September 13, 2026
+
+One external example-agent run through the local HTTP MCP gateway, using the operator's
+connected demo accounts. The example process received only an Aftercare agent key, not app
+tokens. The injected agent errors, simulated teammate edit through GitHub's API, and deliberate
+repair interruption are disclosed in the video. This is one authored acceptance scenario,
+not a benchmark or an organic customer incident.
+
+Capture started at **20:40:14 UTC (1:40:14 PM Pacific)**. The earlier capture attempt stopped
+at a local preflight guard because a workspace already existed; it made no MCP app calls.
+The prior inactive workspace was then saved before starting fresh.
+
+| Time (UTC) / check | Observed result |
+| --- | --- |
+| 20:40:14–20:40:26 · MCP example | `initialize`, seven tools listed, `start_run`, five app actions, and `finish_run`; the tool sequence took about 7 seconds. Created Linear AFT-13, GitHub #31 and #32, cleared AFT-13's owner, and posted the demo Slack announcement |
+| Run acceptance | 5 actions recorded, 3 flagged, `repairable: true`; Slack alert recorded as sent |
+| 20:40:38–20:40:57 · first investigation | `deepseek/deepseek-v4-flash`: close duplicate #32, restore Caleb Peterson, append correction; 5 tool calls, 0 rejected responses; request latency including app reads **18,837 ms** |
+| 20:41:11 · simulated teammate edit | Operator-side GitHub API call added “Also migrate the audit logs” to #32; this edit did not pass through the example agent |
+| 20:41:18 · old approval | Rejected after refreshed app state differed from the reviewed snapshot |
+| 20:41:24–20:41:46 · second investigation | Preserved #32, restored the owner, appended a correction; 6 tool calls, 1 malformed-arguments refusal recovered within the investigation; request latency including app reads **21,350 ms** |
+| 20:41:59 · approval | Repair v2 approved: 2 writes and 1 preserved record |
+| 20:42:04 · interruption | Deliberately interrupted after the provider accepted the Linear assignment write |
+| 20:42:11 · reconciliation | Read-back found AFT-13 already assigned to Caleb Peterson; executor recorded reconciliation without repeating the assignment |
+| 20:42:16–20:42:18 · completion | Slack correction verified; plan complete, 2 writes verified and 1 record held without a write |
+| Independent GitHub read | GitHub's API returned #32 open with the added audit-log line intact |
+| Receipt and capture | [Exported live MCP receipt](evidence/live-mcp-2026-09-13.json); 114.84-second captioned [video](https://aftercare-ynmc.onrender.com/demo.html). Uncut capture was 161.52 seconds; setup and investigation waits were shortened |
+
+The final GitHub state was checked independently. Linear and Slack outcomes and the skipped
+repeat assignment are evidenced by Aftercare's provider read-back and execution journal;
+there was no separate provider-side request audit. The agent key was revoked after capture.
+The recording's old “Human decisions preserved” counter counted only Linear holds and displayed
+zero for the preserved GitHub issue; the UI now counts held records across apps and labels
+the metric “Records preserved.” The receipt already recorded the GitHub hold correctly.
+
+This upgrades the MCP example path to one live-account acceptance run. It does not upgrade
+the separate Recorder API, arbitrary MCP clients, other incident families, gateway crash
+recording, or the hosted visitor connection flow to live-validated status.
 
 ## Frozen investigator holdout: September 13, 2026
 
