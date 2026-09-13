@@ -33,6 +33,10 @@
   .stat strong{display:block;font-size:28px;letter-spacing:-.8px;color:#34836b}
   .stat span{font-size:13px;color:#555a52}
   .limits{margin-top:22px;font-size:14px;color:#555a52;background:#fff;border:1px dashed #d8d6cc;border-radius:10px;padding:14px 16px}
+  .proof{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+  .proof figure{margin:0;background:#fff;border:1px solid #e4e3dc;border-radius:10px;overflow:hidden}
+  .proof img{display:block;width:100%;height:auto;border-bottom:1px solid #eeede6}
+  .proof figcaption{padding:10px 14px;font-size:13px;color:#454a42}
   footer{border-top:1px solid #dedfd8;margin-top:40px;padding-top:18px;font-size:13px;color:#666a62}
 </style>
 <main>
@@ -60,6 +64,14 @@
     real demo accounts. The agent's faults, the teammate's edit, and the repair interruption were
     deliberately injected; setup and AI waits were shortened.
     <a href="https://github.com/Calebux/Aftercare/raw/main/client/public/aftercare-demo.mp4">Download from GitHub ↗</a></p>
+
+  <h2>Proof in the real apps</h2>
+  <div class="proof">
+    <figure><a href="/proof-github.png"><img src="/proof-github.png" alt="GitHub issue #38 still open, with the added line about rotating Acme's API keys" loading="lazy"></a><figcaption><b>GitHub:</b> duplicate #38 stays open with the teammate's added line, so the repair kept it instead of closing it.</figcaption></figure>
+    <figure><a href="/proof-slack.png"><img src="/proof-slack.png" alt="Slack channel with the agent's announcement, Aftercare's alert, and one threaded reply" loading="lazy"></a><figcaption><b>Slack:</b> the agent's premature "Acme is ready", Aftercare's alert listing the three problems, and exactly one threaded reply: the correction.</figcaption></figure>
+    <figure><a href="/proof-linear.png"><img src="/proof-linear.png" alt="Linear issue AFT-16 with Caleb Peterson restored as assignee" loading="lazy"></a><figcaption><b>Linear:</b> AFT-16's owner is Caleb Peterson again after the agent cleared it.</figcaption></figure>
+  </div>
+  <p class="details">Screenshots from a recorded run on September 13, 2026 (issue #38 and AFT-16). The Slack channel also shows earlier test runs.</p>
 
   <h2>What you're watching</h2>
   <ol class="steps">
