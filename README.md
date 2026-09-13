@@ -216,6 +216,11 @@ escalate within the original eight-round, twenty-call, two-minute budget. Partia
 completed denominators. The UI's Evaluation view keeps these separate from recovery-engine
 results and the [live-account acceptance record](VALIDATION.md).
 
+A separate four-case holdout was frozen, with its expected outcomes and the implementation,
+before the model ran it once: 10/12 trials passed, and both failures were safe. Check its
+scorer with `npm run eval:holdout -- --mock` (no model calls). The frozen suite refuses to run
+again; see [EVALUATION-HOLDOUT.md](EVALUATION-HOLDOUT.md).
+
 ## Verify
 
 ```sh

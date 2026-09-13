@@ -35,6 +35,7 @@ are escaped before posting.
 - [EVALUATION.md](EVALUATION.md): seeded recovery-engine trials through simulated provider APIs, no model.
 - [EVALUATION-MODEL.md](EVALUATION-MODEL.md): real-model decisions with independent in-memory app state; correctness, preservation, duplicate writes, latency, failures, and denominators.
 - [EVALUATION-MOCK.md](EVALUATION-MOCK.md): scripted responses checking the evaluation machinery; not evidence of AI performance.
+- [EVALUATION-HOLDOUT.md](EVALUATION-HOLDOUT.md): four new cases frozen with the implementation before one real-model run; 10/12 passed, failures retained.
 - [VALIDATION.md](VALIDATION.md): observed real-account runs, dates, failures, and remaining live checks.
 
 A terminal policy rejection is a failed agent trial, even when it safely prevents a write.

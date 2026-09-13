@@ -26,3 +26,17 @@ the issue and change the dependent Slack wording; conflicting owners should prod
 explicit escalation with no approval button; an accurate existing correction should require
 no second post. The real-model evaluation includes a distinct-work case present from creation,
 so a simple “body changed” rule is insufficient to choose the right action.
+
+## Local walkthrough video
+
+`npm run build && npm run demo:record` produces a silent, captioned 36-second walkthrough in
+the ignored `demo-output/` folder (`aftercare-walkthrough.mp4`, a WebM copy, and the sample
+receipt it exported). It covers the welcome screen, the recorded agent run, a reviewable plan
+with evidence, a human edit that blocks the old approval, an interrupted write that resumes
+without repeating, the receipt, the Evaluation view, and the distinct-work sample that keeps an
+issue open.
+
+It uses the local sample scenario with scenario rules, simulated app records, and a throwaway
+data directory: no model calls and no app tokens. Label it as a sample walkthrough. It does
+not replace the live-account recording above, which shows real provider records and the AI
+investigator.

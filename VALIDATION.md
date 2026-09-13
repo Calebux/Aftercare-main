@@ -52,6 +52,41 @@ accounts; see the live run with a content change during review below. Sample evi
 cases and record-link resolution have automated coverage only. The real-model evaluation
 does not upgrade any live-account claim.
 
+## Frozen investigator holdout: September 13, 2026
+
+Four new cases, written with expected decisions, final state, and write counts, were frozen
+together with the investigator, policy, executor, and scorer (manifest hashes, commit
+`bfebfea`) before any model call. The runner refuses changed hashes and never overwrites
+its first run. Before freezing, scripted positive controls passed and a policy-allowed but
+wrong closure failed the scorer.
+
+One run with `deepseek/deepseek-v4-flash`, three trials per case, on independent in-memory
+app state:
+
+| Case | Expected | Passed |
+| --- | --- | --- |
+| Same title, different deliverables from creation | Keep the issue, restore the owner, add a correction | 3/3 |
+| Different wording, redundant work | Close the duplicate, restore the owner, add a correction | 2/3 |
+| Accurate correction in different words | Keep everything; no writes | 2/3 |
+| Conflicting original-owner records | Escalate; no writes | 3/3 |
+
+**Total 10/12.** Hashes were unchanged throughout, there were 0 duplicate side effects across
+14 accepted writes, and the existing correction and human changes were kept in 3/3 eligible
+trials.
+
+Both failures were safe, and both count as failures:
+
+- Different wording, trial 3: the model chose `preserve_issue` for a true duplicate, so the
+  issue stayed open (2 writes instead of 3).
+- Accurate correction, trial 2: the model asked to read a record outside the incident, and
+  the investigator stopped with no plan and no writes. Out-of-scope reads currently end an
+  investigation instead of returning corrective feedback.
+
+These are four examples repeated three times from the same workflow family, not twelve
+independent examples or a general benchmark. Any change made in response to these failures
+needs a new frozen holdout; this one will not be rerun. Details are in
+[EVALUATION-HOLDOUT.md](EVALUATION-HOLDOUT.md).
+
 ## Live demo apps
 
 Arga twins are not used while further validation runs would have to be bought. Live

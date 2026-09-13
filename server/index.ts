@@ -121,7 +121,7 @@ app.get('/api/run/live', (req, res) => withSlot(req, res, slot => res.json({ run
 // A fixed, committed file: nothing from the request is used to locate it.
 app.get('/api/evaluation', (_req, res) => {
   const read = (file: string) => { try { return JSON.parse(readFileSync(resolve(file), 'utf8')); } catch { return null; } };
-  res.json({ evaluation: read('eval/results.json'), investigations: { mock: read('eval/investigation-mock.json'), model: read('eval/investigation-model.json') } });
+  res.json({ evaluation: read('eval/results.json'), investigations: { mock: read('eval/investigation-mock.json'), model: read('eval/investigation-model.json'), holdout: read('eval/holdout-v1/results.json') } });
 });
 app.get('/api/connections/:provider/resources', (req, res) => withSlot(req, res, async slot => {
   const provider = req.params.provider;
