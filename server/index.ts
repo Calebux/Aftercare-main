@@ -11,6 +11,8 @@ import { createSessions, type Slot } from './sessions.js';
 import { evidenceScenario } from './scenarios.js';
 import { evidenceScenarios, type EvidenceScenario } from '../shared/scenarios.js';
 import { recordLink } from './links.js';
+import { discardExternalRun, finishExternalRun, recordAction, startExternalRun, throttle, type Scope } from './external.js';
+import { handleMcp } from './mcp.js';
 import type { Workspace } from '../shared/types.js';
 
 if (existsSync('.env')) process.loadEnvFile('.env');
@@ -33,6 +35,8 @@ const operatorLive = connectionsEnabled && !hosted ? readLiveConfig().config : u
 // Visitors to a hosted instance must not spend the operator's Arga runs.
 const arga = hosted ? undefined : argaConfig();
 const credentials = twinCredentials();
+// Links in alerts and agent responses use the configured address, never the request, and carry no session.
+const reviewUrl = publicUrl ?? `http://127.0.0.1:${port}`;
 const twinTtl = Number(process.env.ARGA_TWIN_TTL_MINUTES || 10);
 const sessions = createSessions({
   dir: resolve(process.env.AFTERCARE_DATA_DIR || '.data'),
@@ -97,6 +101,37 @@ function claim(slot: Slot, action: string) {
   slot.activeAction = action;
 }
 
+/**
+ * Agent routes authenticate with a workspace's agent key only. Cookies are ignored, so a page
+ * elsewhere cannot drive them through a visitor's browser session.
+ */
+function agentSlot(req: Request): Slot {
+  const header = req.get('authorization') ?? '';
+  const slot = sessions.findByAgentKey(header.startsWith('Bearer ') ? header.slice(7).trim() : undefined);
+  if (!slot) throw new RecoveryError('A valid agent key is required in the Authorization header.', 401);
+  throttle(slot);
+  return slot;
+}
+function agentScope(slot: Slot): Scope {
+  const config = liveConfigFor(slot.connections);
+  if (!config) throw new RecoveryError('Connect GitHub, Linear and Slack in Aftercare and choose a repository, team and channel first.', 409);
+  return { config, fetcher: fetch };
+}
+/** Agents receive only the error message, never the workspace. */
+function failAgent(res: Response, error: unknown) {
+  if (error instanceof RecoveryError) {
+    if (error.status === 401) res.set('WWW-Authenticate', 'Bearer');
+    res.status(error.status).json({ error: error.message });
+  } else { console.error(error); res.status(500).json({ error: 'The agent request failed.' }); }
+}
+async function withAgent(req: Request, res: Response, run: (slot: Slot) => Promise<unknown>) {
+  try {
+    const slot = agentSlot(req);
+    claim(slot, 'an agent request');
+    try { res.json(await run(slot)); } finally { slot.activeAction = undefined; }
+  } catch (error) { failAgent(res, error); }
+}
+
 app.get('/api/workspace', (req, res) => withSlot(req, res, slot => res.json(publicView(slot.workspace))));
 app.get('/api/records/:id/open', (req, res) => withSlot(req, res, async slot => {
   const record = slot.workspace.records.find(r => r.id === req.params.id);
@@ -148,6 +183,51 @@ app.post('/api/connections/:provider/:change', (req, res) => withSlot(req, res, 
   } finally { slot.activeAction = undefined; }
 }));
 
+// Agent keys are issued from the visitor's own session and shown once.
+app.post('/api/agent/key', (req, res) => withSlot(req, res, slot => {
+  if (!connectionsEnabled) throw new RecoveryError('App connections are disabled in scenario-only mode.', 409);
+  res.json({ key: sessions.issueAgentKey(slot), mcpUrl: `${reviewUrl}/mcp`, recorderUrl: `${reviewUrl}/api/agent/runs` });
+}));
+app.post('/api/agent/key/revoke', (req, res) => withSlot(req, res, slot => { sessions.revokeAgentKey(slot); res.json({ keyIssued: false }); }));
+app.get('/api/agent/status', (req, res) => withSlot(req, res, slot => res.json({
+  keyIssued: sessions.hasAgentKey(slot), runOpen: Boolean(slot.externalRun), run: slot.externalRun ? slot.liveRun ?? null : null,
+  mcpUrl: `${reviewUrl}/mcp`, recorderUrl: `${reviewUrl}/api/agent/runs`,
+})));
+// Recorder API: the agent calls the apps itself and reports each action for checking.
+app.post('/api/agent/runs', (req, res) => withAgent(req, res, async slot => ({ run: (await startExternalRun(slot, req.body ?? {}, 'recorder', agentScope(slot))).id })));
+app.post('/api/agent/runs/current/actions', (req, res) => withAgent(req, res, async slot => {
+  agentScope(slot);
+  const action = recordAction(slot, req.body ?? {});
+  return { recorded: slot.externalRun?.actions.length ?? 0, summary: action.summary };
+}));
+app.post('/api/agent/runs/current/finish', (req, res) => withAgent(req, res, async slot => {
+  const result = await finishExternalRun(slot, agentScope(slot), { reviewUrl });
+  if (result.repairable) slot.persist();
+  return { repairable: result.repairable, recorded: result.recorded, flagged: result.flagged, review: result.repairable ? reviewUrl : null };
+}));
+app.post('/api/agent/runs/current/discard', (req, res) => withAgent(req, res, async slot => { discardExternalRun(slot); return { discarded: true }; }));
+
+// MCP gateway: the agent calls the apps through Aftercare, which records every call.
+app.get('/mcp', (_req, res) => { res.status(405).set('Allow', 'POST').json({ error: 'Send MCP requests with POST.' }); });
+app.post('/mcp', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const origin = req.get('origin');
+  if (origin && origin !== (publicUrl ? new URL(publicUrl).origin : `http://${req.get('host')}`)) { res.status(403).json({ error: 'Cross-origin MCP requests are not allowed.' }); return; }
+  if (!req.is('application/json')) { res.status(415).json({ error: 'JSON is required.' }); return; }
+  try {
+    const slot = agentSlot(req);
+    const call = req.body?.method === 'tools/call';
+    if (call) claim(slot, 'an agent tool call');
+    try {
+      const config = liveConfigFor(slot.connections);
+      const response = await handleMcp(slot, req.body, config ? { config, fetcher: fetch } : undefined, { reviewUrl });
+      if (slot.workspace.mode === 'live') slot.persist();
+      if (response === null) { res.status(202).end(); return; }
+      res.json(response);
+    } finally { if (call) slot.activeAction = undefined; }
+  } catch (error) { failAgent(res, error); }
+});
+
 app.post('/api/:action', (req, res) => withSlot(req, res, async slot => {
   claim(slot, req.params.action);
   const persist = () => slot.persist();
@@ -192,8 +272,7 @@ app.post('/api/:action', (req, res) => withSlot(req, res, async slot => {
         event(slot.workspace, 'Running onboarding-agent', 'Checking access, then running the agent through the recorder in your GitHub repository, Linear team and Slack channel.'); persist();
         slot.liveRun = undefined;
         await connectLive(slot.workspace, config, fetch, {
-          // Built from the configured address rather than the request, and never carries a session.
-          reviewUrl: publicUrl ?? `http://127.0.0.1:${port}`,
+          reviewUrl,
           pauseMs: 700,
           onProgress: run => { slot.liveRun = run; },
         });

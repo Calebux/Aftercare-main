@@ -63,6 +63,11 @@ export const github = {
     const issue = await api(e, `/repos/${ref.owner}/${ref.repo}/issues/${ref.issueNumber}`, { headers: github.headers(e) }, 'reading the issue');
     return String(need(e, issue?.state, 'issue state'));
   },
+  async readIssue(e: Endpoint, ref: ExternalRef): Promise<{ state: string; title: string; body: string }> {
+    const issue = await api(e, `/repos/${ref.owner}/${ref.repo}/issues/${ref.issueNumber}`, { headers: github.headers(e) }, 'reading the issue');
+    if (issue?.pull_request) throw new RecoveryError(`${e.name} #${ref.issueNumber} is a pull request, not an issue.`, 422);
+    return { state: String(need(e, issue?.state, 'issue state')), title: String(issue?.title ?? ''), body: String(issue?.body ?? '') };
+  },
   async readBody(e: Endpoint, ref: ExternalRef): Promise<string> {
     const issue = await api(e, `/repos/${ref.owner}/${ref.repo}/issues/${ref.issueNumber}`, { headers: github.headers(e) }, 'reading issue content');
     if (issue?.body === null) return '';
@@ -105,6 +110,12 @@ export const linear = {
     const issue = need(e, data?.issueCreate?.issue, 'issue');
     return { id: issue.id, identifier: issue.identifier ?? 'OPS-93' };
   },
+  /** Looks up an issue by ID or identifier (such as AFT-12), including its team for scope checks. */
+  async readIssue(e: Endpoint, id: string): Promise<{ id: string; identifier: string; teamId: string; assignee: string }> {
+    const data = await linear.gql(e, 'query($id:String!){ issue(id:$id){ id identifier team { id } assignee { name } } }', { id }, 'reading the issue');
+    const issue = need(e, data?.issue, 'issue');
+    return { id: String(issue.id), identifier: String(issue.identifier), teamId: String(issue.team?.id ?? ''), assignee: String(issue.assignee?.name ?? '') };
+  },
   async readAssignee(e: Endpoint, ref: ExternalRef): Promise<string> {
     const data = await linear.gql(e, 'query($id:String!){ issue(id:$id){ assignee { name } } }', { id: ref.issueId }, 'reading the issue');
     return String(data?.issue?.assignee?.name ?? '');
@@ -120,6 +131,9 @@ export const linear = {
 /** Slack reads &, < and > as control characters; escaping them keeps app data from becoming mentions or links. */
 export function escapeSlack(text: string) {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+export function unescapeSlack(text: string) {
+  return text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }
 
 /* Slack Web API. Errors arrive as ok:false inside a 200 response. */
@@ -147,6 +161,13 @@ export const slack = {
   async post(e: Endpoint, channel: string, text: string, threadTs?: string): Promise<string> {
     const body = await slack.call(e, 'chat.postMessage', threadTs ? { channel, text, thread_ts: threadTs } : { channel, text });
     return need(e, body?.ts, 'message timestamp');
+  },
+  /** Reads one message in a channel, unescaped, so a reported post can be checked against Slack. */
+  async readMessage(e: Endpoint, channel: string, ts: string): Promise<string> {
+    const body = await slack.get(e, 'conversations.replies', { channel, ts, limit: '1' });
+    const message = (Array.isArray(body?.messages) ? body.messages : []).find((m: any) => m?.ts === ts);
+    if (!message) throw new RecoveryError(`${e.name} has no message ${ts} in the connected channel.`, 422);
+    return unescapeSlack(String(message.text ?? ''));
   },
   /** The correction is a threaded reply; the original message is never edited. */
   async readCorrection(e: Endpoint, ref: ExternalRef): Promise<string> {

@@ -82,6 +82,8 @@ export interface AgentRun {
   task: string;
   /** `recorded` from real tool calls; `simulated` for the local scenario. */
   mode: 'recorded' | 'simulated';
+  /** Who captured a recorded run: the built-in demo agent, an agent's report, or the MCP gateway. */
+  source?: 'demo' | 'recorder' | 'mcp';
   startedAt: string;
   /** Absent while the run is in progress. */
   finishedAt?: string;

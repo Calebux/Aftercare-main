@@ -103,6 +103,17 @@ test('HTTP review refreshes twins and rejects conflicting mutations during execu
     const { evaluation } = await (await fetch(`${base}/api/evaluation`)).json();
     assert.ok(Array.isArray(evaluation?.scenarios) && evaluation.scenarios.length > 0, 'committed evaluation results are served');
     assert.equal((await post('connect-live')).status, 409);
+
+    // Agent routes accept only agent keys; cookies, missing keys, and other origins are refused.
+    const mcp = (headers: Record<string, string>) => fetch(`${base}/mcp`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
+    const noKey = await mcp({});
+    assert.equal(noKey.status, 401);
+    assert.equal(noKey.headers.get('www-authenticate'), 'Bearer');
+    assert.equal((await mcp({ Authorization: `Bearer aft_${'A'.repeat(43)}` })).status, 401);
+    assert.equal((await mcp({ Origin: 'http://attacker.example' })).status, 403);
+    assert.equal((await fetch(`${base}/mcp`)).status, 405);
+    assert.equal((await fetch(`${base}/api/agent/runs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 401);
+    assert.equal((await post('agent/key')).status, 409, 'scenario-only runs never issue agent keys');
   } finally {
     releaseWrite(); child.kill(); await exited;
     provider.closeAllConnections(); await new Promise<void>(resolve => provider.close(() => resolve()));

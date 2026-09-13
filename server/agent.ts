@@ -19,13 +19,13 @@ const RETRY_BODY = 'Onboarding task for Acme (retried after a timeout).';
  * Marks the recorded actions that need repair using only the recording and the task:
  * a create repeated after an identical create had already succeeded, an owner other
  * than the one the task names, and a completion announcement made while other
- * changes still need repair.
+ * changes still need repair. Intake actions describe existing work and are never flagged.
  */
 export function assess(actions: RecordedAction[], task: { owner: string }): RecordedAction[] {
   const marked = actions.map(a => ({ ...a }));
   const flag = (action: RecordedAction, finding: string) => { action.assessment = 'needs_repair'; action.finding = finding; };
   marked.forEach((action, index) => {
-    if (action.actor !== AGENT) return;
+    if (action.actor === 'intake') return;
     if (action.tool === 'github.create_issue') {
       const earlier = marked.slice(0, index).find(a => a.tool === action.tool && a.after.title === action.after.title);
       if (earlier) flag(action, `Repeats ${earlier.after.issue}, which GitHub had already created${earlier.outcome === 'reported_timeout' ? ' before the agent was told the call timed out' : ''}.`);
@@ -36,11 +36,63 @@ export function assess(actions: RecordedAction[], task: { owner: string }): Reco
   });
   const problems = marked.filter(a => a.assessment === 'needs_repair').length;
   for (const action of marked) {
-    if (action.actor === AGENT && action.tool === 'slack.post_message' && problems) {
+    if (action.actor !== 'intake' && action.tool === 'slack.post_message' && problems) {
       flag(action, `Announced completion while ${problems} other change${problems === 1 ? '' : 's'} still needed repair.`);
     }
   }
   return marked;
+}
+
+/** What a recorded onboarding incident established, from Aftercare's own calls or an agent's verified report. */
+export interface IncidentFacts {
+  agent: string; task: string; owner: string; startedAt: string; source: NonNullable<AgentRun['source']>;
+  actions: RecordedAction[];
+  repo: { owner: string; repo: string };
+  canonical: { issue: number; body: string };
+  duplicate: { issue: number; body: string; state?: string };
+  handoff: { id: string; identifier: string; teamId: string };
+  originalOwner: string; wrongOwner: string;
+  slack: { channelId: string; ts: string; message: string };
+}
+
+/** Binds the workspace records and repair journal to a recorded incident and returns its assessed run. */
+export function bindIncident(w: Workspace, f: IncidentFacts): AgentRun {
+  const [gh, lin, sl] = w.records;
+  const assessed = assess(f.actions, { owner: f.owner });
+  const flagged = (tool: string) => assessed.find(a => a.tool === tool && a.assessment === 'needs_repair');
+  const links = [[flagged('github.create_issue'), gh], [flagged('linear.update_assignee'), lin], [flagged('slack.post_message'), sl]] as const;
+  for (const [action, record] of links) if (action) action.recordId = record.id;
+
+  gh.external = { provider: 'github', ...f.repo, issueNumber: f.duplicate.issue };
+  gh.label = `#${f.duplicate.issue}`;
+  gh.fields = { ...gh.fields, state: f.duplicate.state ?? 'open', canonicalIssue: `#${f.canonical.issue}`, body: f.duplicate.body, canonicalBody: f.canonical.body };
+  lin.external = { provider: 'linear', issueId: f.handoff.id, teamId: f.handoff.teamId };
+  lin.label = f.handoff.identifier;
+  lin.fields = { ...lin.fields, assignee: f.wrongOwner };
+  sl.external = { provider: 'slack', channelId: f.slack.channelId, ts: f.slack.ts };
+  sl.fields = { ...sl.fields, message: f.slack.message, correction: '' };
+
+  // The repair journal is the recorded evidence for each action that needs repair.
+  const journal = (recordId: string, action: RecordedAction | undefined, before: Fields, after: Fields) => {
+    const source = w.sourceActions.find(a => a.recordId === recordId);
+    if (source && action) Object.assign(source, { description: `${action.summary} ${action.finding ?? ''}`.trim(), before, after, at: action.at });
+  };
+  journal(gh.id, links[0][0], { canonicalIssue: `#${f.canonical.issue}` }, { ...gh.fields });
+  journal(lin.id, links[1][0], { assignee: f.originalOwner }, { ...lin.fields });
+  journal(sl.id, links[2][0], { correction: '' }, { ...sl.fields });
+  for (const record of w.records) { record.revision = 1; record.lastActor = 'agent'; }
+
+  // The initial sample is a placeholder, not an action from the recorded incident.
+  w.events = w.events.filter(e => !(e.title === 'Failed workflow loaded' && e.detail.endsWith('Local scenario data.')));
+  w.run = { agent: f.agent, task: f.task, mode: 'recorded', source: f.source, startedAt: f.startedAt, finishedAt: new Date().toISOString(), actions: assessed };
+  return w.run;
+}
+
+export interface RunOptions {
+  /** Receives the run after every recorded action, with assessments so far. */
+  onProgress?: (run: AgentRun) => void;
+  /** A pause after each action so people can watch; tests run without it. */
+  pauseMs?: number;
 }
 
 /**
@@ -50,13 +102,6 @@ export function assess(actions: RecordedAction[], task: { owner: string }): Reco
  * the wrong owner. The workspace changes only after every call succeeds; a failed
  * run removes what it created.
  */
-export interface RunOptions {
-  /** Receives the run after every recorded action, with assessments so far. */
-  onProgress?: (run: AgentRun) => void;
-  /** A pause after each action so people can watch; tests run without it. */
-  pauseMs?: number;
-}
-
 export async function runOnboardingAgent(w: Workspace, t: IncidentTargets, options: RunOptions = {}): Promise<AgentRun> {
   // Owners are restored by name, so members must be distinguishable by it.
   const people = (await linear.users(t.linear.endpoint)).filter((p, i, all) => all.findIndex(q => q.name === p.name) === i);
@@ -70,7 +115,7 @@ export async function runOnboardingAgent(w: Workspace, t: IncidentTargets, optio
   const task = `Onboard Acme and hand off to ${owner.name}.`;
   const capture = async (actor: string, app: AppName, tool: string, summary: string, before: Fields, after: Fields, outcome: RecordedAction['outcome'] = 'succeeded') => {
     actions.push({ id: randomUUID(), at: new Date().toISOString(), actor, app, tool, summary, outcome, before, after, assessment: actor === AGENT ? 'expected' : 'setup' });
-    options.onProgress?.({ agent: AGENT, task, mode: 'recorded', startedAt, actions: assess(actions, { owner: owner.name }) });
+    options.onProgress?.({ agent: AGENT, task, mode: 'recorded', source: 'demo', startedAt, actions: assess(actions, { owner: owner.name }) });
     if (options.pauseMs) await new Promise(resolve => setTimeout(resolve, options.pauseMs));
   };
   const repo = { owner: t.github.owner, repo: t.github.repo };
@@ -100,7 +145,7 @@ export async function runOnboardingAgent(w: Workspace, t: IncidentTargets, optio
     const ts = await slack.post(t.slack.endpoint, t.slack.channelId, escapeSlack(message));
     undo.push(() => slack.call(t.slack.endpoint, 'chat.delete', { channel: t.slack.channelId, ts }));
     await capture(AGENT, 'Slack', 'slack.post_message', `Posted “${message}”`, {}, { message });
-    return { canonical, duplicate, handoff, linearRef, ts, message, wrongOwner };
+    return { canonical, duplicate, handoff, ts, message, wrongOwner };
   };
   const made = await attempt().catch(async (error: unknown): Promise<never> => {
     let cleaned = true;
@@ -110,33 +155,12 @@ export async function runOnboardingAgent(w: Workspace, t: IncidentTargets, optio
     throw new RecoveryError(`${error.message} ${note}`, error.status);
   });
 
-  const [gh, lin, sl] = w.records;
-  const assessed = assess(actions, { owner: owner.name });
-  const flagged = (tool: string) => assessed.find(a => a.tool === tool && a.assessment === 'needs_repair');
-  const links = [[flagged('github.create_issue'), gh], [flagged('linear.update_assignee'), lin], [flagged('slack.post_message'), sl]] as const;
-  for (const [action, record] of links) if (action) action.recordId = record.id;
-
-  gh.external = { provider: 'github', ...repo, issueNumber: made.duplicate };
-  gh.label = `#${made.duplicate}`;
-  gh.fields = { ...gh.fields, state: 'open', canonicalIssue: `#${made.canonical}`, body: RETRY_BODY, canonicalBody: CANONICAL_BODY };
-  lin.external = made.linearRef;
-  lin.label = made.handoff.identifier;
-  lin.fields = { ...lin.fields, assignee: made.wrongOwner };
-  sl.external = { provider: 'slack', channelId: t.slack.channelId, ts: made.ts };
-  sl.fields = { ...sl.fields, message: made.message, correction: '' };
-
-  // The repair journal is the recorded evidence for each action that needs repair.
-  const journal = (recordId: string, action: RecordedAction | undefined, before: Fields, after: Fields) => {
-    const source = w.sourceActions.find(a => a.recordId === recordId);
-    if (source && action) Object.assign(source, { description: `${action.summary} ${action.finding ?? ''}`.trim(), before, after, at: action.at });
-  };
-  journal(gh.id, links[0][0], { canonicalIssue: `#${made.canonical}` }, { ...gh.fields });
-  journal(lin.id, links[1][0], { assignee: owner.name }, { ...lin.fields });
-  journal(sl.id, links[2][0], { correction: '' }, { ...sl.fields });
-  for (const record of w.records) { record.revision = 1; record.lastActor = 'agent'; }
-
-  // The initial sample is a placeholder, not an action from the recorded incident.
-  w.events = w.events.filter(e => !(e.title === 'Failed workflow loaded' && e.detail.endsWith('Local scenario data.')));
-  w.run = { agent: AGENT, task, mode: 'recorded', startedAt, finishedAt: new Date().toISOString(), actions: assessed };
-  return w.run;
+  return bindIncident(w, {
+    agent: AGENT, task, owner: owner.name, startedAt, source: 'demo', actions, repo,
+    canonical: { issue: made.canonical, body: CANONICAL_BODY },
+    duplicate: { issue: made.duplicate, body: RETRY_BODY },
+    handoff: { id: made.handoff.id, identifier: made.handoff.identifier, teamId: t.linear.teamId },
+    originalOwner: owner.name, wrongOwner: made.wrongOwner,
+    slack: { channelId: t.slack.channelId, ts: made.ts, message: made.message },
+  });
 }

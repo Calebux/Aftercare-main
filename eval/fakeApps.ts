@@ -23,6 +23,7 @@ export function fakeApps(options: FakeOptions = {}) {
   const members = options.members ?? team.slice(0, 2);
   const issues = new Map<number, string>();
   const issueBodies = new Map<number, string>();
+  const issueTitles = new Map<number, string>();
   const assignees = new Map<string, string>();
   const deleted: string[] = [];
   const messages: Array<{ ts: string; text: string; thread_ts?: string }> = [];
@@ -46,11 +47,11 @@ export function fakeApps(options: FakeOptions = {}) {
       const match = url.pathname.match(/^\/repos\/demo-owner\/aftercare-demo(.*)$/);
       if (!match) return json({ message: 'Not Found' }, 404);
       if (match[1] === '') return json({ full_name: 'demo-owner/aftercare-demo' });
-      if (match[1] === '/issues' && method === 'POST') { issues.set(issues.size + 1, 'open'); issueBodies.set(issues.size, body.body ?? ''); return json({ number: issues.size, state: 'open' }, 201); }
+      if (match[1] === '/issues' && method === 'POST') { issues.set(issues.size + 1, 'open'); issueBodies.set(issues.size, body.body ?? ''); issueTitles.set(issues.size, body.title ?? ''); return json({ number: issues.size, state: 'open' }, 201); }
       const number = Number(match[1].match(/^\/issues\/(\d+)$/)?.[1]);
       if (!issues.has(number)) return json({ message: 'Not Found' }, 404);
       if (method === 'PATCH') issues.set(number, body.state);
-      return json({ number, state: issues.get(number), body: issueBodies.get(number) ?? '' });
+      return json({ number, title: issueTitles.get(number) ?? '', state: issues.get(number), body: issueBodies.get(number) ?? '' });
     }
     if (url.href === 'https://api.linear.app/graphql') {
       const { query, variables: v } = body;
@@ -60,6 +61,12 @@ export function fakeApps(options: FakeOptions = {}) {
       if (query.includes('issueCreate')) { assignees.set('lin-1', named(v.i.assigneeId)); return json({ data: { issueCreate: { issue: { id: 'lin-1', identifier: 'OPS-1' } } } }); }
       if (query.includes('issueDelete')) { deleted.push(v.id); return json({ data: { issueDelete: { success: true } } }); }
       if (query.includes('issueUpdate')) { assignees.set(v.id, named(v.i.assigneeId)); return json({ data: { issueUpdate: { success: true } } }); }
+      if (query.includes('identifier')) {
+        // Lookups by identifier: OPS-1 is the handoff issue in the demo team; ENG-7 belongs to another team.
+        const key = v.id === 'OPS-1' ? 'lin-1' : v.id === 'ENG-7' ? 'lin-eng-7' : v.id;
+        const identifier = key === 'lin-1' ? 'OPS-1' : key === 'lin-eng-7' ? 'ENG-7' : v.id;
+        return json({ data: { issue: { id: key, identifier, team: { id: identifier.startsWith('ENG-') ? 'team-eng' : 'team-ops' }, assignee: assignees.get(key) ? { name: assignees.get(key) } : null } } });
+      }
       return json({ data: { issue: { assignee: assignees.get(v.id) ? { name: assignees.get(v.id) } : null } } });
     }
     if (url.href === 'https://slack.com/api/chat.postMessage') {

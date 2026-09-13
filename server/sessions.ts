@@ -1,10 +1,11 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Request, Response } from 'express';
 import type { AgentRun, Workspace } from '../shared/types.js';
 import { RecoveryError, seedWorkspace } from './recovery.js';
 import type { Connections } from './connections.js';
+import type { ExternalRun } from './external.js';
 
 /** One visitor's recovery workspace and app connections. */
 export interface Slot {
@@ -15,6 +16,9 @@ export interface Slot {
   activeAction?: string;
   /** The agent run in progress, kept in memory for the live view. */
   liveRun?: AgentRun;
+  /** A run an outside agent is recording, kept in memory until it is finished or discarded. */
+  externalRun?: ExternalRun;
+  agentRate?: { windowStart: number; count: number };
   touched: number;
   persist(): void;
 }
@@ -41,6 +45,35 @@ function readCookie(req: Request, name: string) {
   return undefined;
 }
 
+/**
+ * Agent keys let an outside agent act for one workspace without its browser session.
+ * Only a SHA-256 hash is kept, in memory, so a restart or revocation invalidates a key.
+ */
+function agentKeys() {
+  const bySlot = new Map<Slot, string>();
+  const byHash = new Map<string, Slot>();
+  const hash = (key: string) => createHash('sha256').update(key).digest('hex');
+  const revoke = (slot: Slot) => {
+    const h = bySlot.get(slot);
+    if (h) byHash.delete(h);
+    bySlot.delete(slot);
+  };
+  return {
+    issueAgentKey(slot: Slot) {
+      revoke(slot);
+      const key = `aft_${randomBytes(32).toString('base64url')}`;
+      bySlot.set(slot, hash(key));
+      byHash.set(hash(key), slot);
+      return key;
+    },
+    revokeAgentKey: revoke,
+    hasAgentKey: (slot: Slot) => bySlot.has(slot),
+    findByAgentKey(key: unknown): Slot | undefined {
+      return typeof key === 'string' && /^aft_[A-Za-z0-9_-]{43}$/.test(key) ? byHash.get(hash(key)) : undefined;
+    },
+  };
+}
+
 const COOKIE = 'aftercare_session';
 const IDLE_MS = 12 * 60 * 60 * 1000;
 const MAX_SESSIONS = 200;
@@ -56,17 +89,23 @@ export interface SessionOptions {
 
 export function createSessions({ dir, hosted, secureCookie, operatorConnections }: SessionOptions) {
   mkdirSync(dir, { recursive: true });
+  const keys = agentKeys();
   if (!hosted) {
     // A single operator on localhost keeps the original workspace and .env connections.
     const local = slotAt(resolve(dir, 'workspace.json'), operatorConnections);
     local.persist();
-    return { resolve: (_req: Request, _res: Response): Slot => local };
+    return { ...keys, resolve: (_req: Request, _res: Response): Slot => local };
   }
   const sessionsDir = resolve(dir, 'sessions');
   mkdirSync(sessionsDir, { recursive: true, mode: 0o700 });
   const slots = new Map<string, Slot>();
   const fileFor = (id: string) => resolve(sessionsDir, `${id}.json`);
-  const forget = (id: string) => { slots.delete(id); rmSync(fileFor(id), { force: true }); };
+  const forget = (id: string) => {
+    const slot = slots.get(id);
+    if (slot) keys.revokeAgentKey(slot);
+    slots.delete(id);
+    rmSync(fileFor(id), { force: true });
+  };
   let pruned = 0;
   /** Bounds disk use: expired workspace files are removed and only the newest MAX_SESSIONS are kept. */
   const prune = (now: number) => {
@@ -84,6 +123,7 @@ export function createSessions({ dir, hosted, secureCookie, operatorConnections 
       });
   };
   return {
+    ...keys,
     resolve(req: Request, res: Response): Slot {
       const now = Date.now();
       prune(now);
