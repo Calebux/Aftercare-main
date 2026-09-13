@@ -133,6 +133,27 @@ whether any trial reached the new refusal. These are still five authored example
 family, repeated three times, not a general benchmark. Details are in
 [EVALUATION-HOLDOUT-V2.md](EVALUATION-HOLDOUT-V2.md).
 
+## Hosted deployment on Render: September 13, 2026
+
+Deployed from `main` with the Render Blueprint (`render.yaml`) on the free plan at
+https://aftercare-ynmc.onrender.com. Before pushing, the same build and start commands were
+rehearsed in a fresh clone with no `.env`: 80/80 tests passed, the server started in hosted mode
+from `RENDER_EXTERNAL_URL`, another host name got HTTP 421, and a new visitor received a workspace.
+
+Checked against the live service at 11:32 AM Pacific:
+
+| Check | Observed result |
+| --- | --- |
+| Page | HTTP 200 |
+| Security headers | `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `nosniff`, and `no-referrer`; no `X-Powered-By` |
+| Configuration | Hosted, connections enabled, AI investigation off (scenario rules) |
+| New visitor | Workspace created, with an `HttpOnly; Secure; SameSite=Lax` session cookie |
+| Evaluation data | Holdout v1 10/12 and v2 15/15 served |
+| MCP gateway without a key | HTTP 401 |
+
+A visitor connecting their own GitHub, Linear, and Slack accounts on the hosted instance has not
+been tested yet.
+
 ## Live demo apps
 
 Arga twins are not used while further validation runs would have to be bought. Live

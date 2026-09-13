@@ -4,6 +4,10 @@ When an AI agent fails partway through work across GitHub, Linear, and Slack, Af
 out what went wrong, prepares a repair that keeps what people changed since, and applies it only
 after a person approves.
 
+**Try it live:** https://aftercare-ynmc.onrender.com. Choose **See it on sample data**; no accounts or
+keys are needed. AI investigation is off on this shared instance, so plans there come from labeled
+scenario rules. The free instance sleeps when idle, so the first load can take about a minute.
+
 **Demo video:** _(link to be added)_
 
 [Try it without keys](#try-it-without-accounts-or-keys) · [How it works](#how-it-works) ·
