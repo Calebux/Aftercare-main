@@ -1,0 +1,101 @@
+{
+  "generatedAt": "2026-09-13T13:47:27.092Z",
+  "seed": 20260913,
+  "trialsPerScenario": 50,
+  "total": {
+    "trials": 450,
+    "passed": 450
+  },
+  "scenarios": [
+    {
+      "id": "correct-repair",
+      "title": "Correct repair",
+      "proves": "The duplicate is closed, the owner restored and one correction posted, verified in app state.",
+      "trials": 50,
+      "passed": 50,
+      "failures": {},
+      "p50ms": 1,
+      "p95ms": 2
+    },
+    {
+      "id": "human-edit-after-review",
+      "title": "Human edit after review",
+      "proves": "An out-of-date approval is refused and the person’s later choice is kept.",
+      "trials": 50,
+      "passed": 50,
+      "failures": {},
+      "p50ms": 1,
+      "p95ms": 1
+    },
+    {
+      "id": "human-edit-during-repair",
+      "title": "Human edit during repair",
+      "proves": "A change made between writes stops the repair, withholds dependent steps, and is kept.",
+      "trials": 50,
+      "passed": 50,
+      "failures": {},
+      "p50ms": 1,
+      "p95ms": 1
+    },
+    {
+      "id": "crash-and-restart",
+      "title": "Crash and restart",
+      "proves": "A restart after an accepted write reconciles from the saved journal without writing twice.",
+      "trials": 50,
+      "passed": 50,
+      "failures": {},
+      "p50ms": 1,
+      "p95ms": 1
+    },
+    {
+      "id": "lost-response",
+      "title": "Lost response after an accepted write",
+      "proves": "When a write succeeds but its response is lost, resuming confirms it instead of repeating it.",
+      "trials": 50,
+      "passed": 50,
+      "failures": {},
+      "p50ms": 0,
+      "p95ms": 1
+    },
+    {
+      "id": "partial-outage",
+      "title": "Partial outage",
+      "proves": "An app outage stops the repair with dependent steps withheld, and it completes once the app recovers.",
+      "trials": 50,
+      "passed": 50,
+      "failures": {},
+      "p50ms": 1,
+      "p95ms": 1
+    },
+    {
+      "id": "hostile-content",
+      "title": "Hostile content in app data",
+      "proves": "Instructions and Slack control sequences inside app data never widen the repair or reach Slack.",
+      "trials": 50,
+      "passed": 50,
+      "failures": {},
+      "p50ms": 0,
+      "p95ms": 1
+    },
+    {
+      "id": "repeated-requests",
+      "title": "Repeated approval and execution",
+      "proves": "Approving twice and executing twice at once applies each repair exactly once.",
+      "trials": 50,
+      "passed": 50,
+      "failures": {},
+      "p50ms": 0,
+      "p95ms": 1
+    },
+    {
+      "id": "missing-evidence",
+      "title": "Missing evidence",
+      "proves": "Without recorded evidence for a record, no plan is prepared and nothing is written.",
+      "trials": 50,
+      "passed": 50,
+      "failures": {},
+      "p50ms": 0,
+      "p95ms": 2
+    }
+  ]
+}

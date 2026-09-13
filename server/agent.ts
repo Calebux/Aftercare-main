@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentRun, AppName, ExternalRef, Fields, RecordedAction, Workspace } from '../shared/types.js';
 import { RecoveryError } from './recovery.js';
-import { github, linear, slack, type Endpoint } from './providers.js';
+import { escapeSlack, github, linear, slack, type Endpoint } from './providers.js';
 
 /** Existing resources the demonstration agent works in. */
 export interface IncidentTargets {
@@ -95,7 +95,7 @@ export async function runOnboardingAgent(w: Workspace, t: IncidentTargets, optio
     await capture(AGENT, 'Linear', 'linear.update_assignee', wrongOwner ? `Reassigned ${handoff.identifier} to ${wrongOwner} from a stale roster.` : `Removed the owner of ${handoff.identifier}; the stale roster had no entry.`, { assignee: owner.name }, { assignee: wrongOwner });
 
     const message = wrongOwner ? `Acme is ready. Workspace provisioned and handoff assigned to ${wrongOwner}.` : 'Acme is ready. Workspace provisioned and handoff complete.';
-    const ts = await slack.post(t.slack.endpoint, t.slack.channelId, message);
+    const ts = await slack.post(t.slack.endpoint, t.slack.channelId, escapeSlack(message));
     undo.push(() => slack.call(t.slack.endpoint, 'chat.delete', { channel: t.slack.channelId, ts }));
     await capture(AGENT, 'Slack', 'slack.post_message', `Posted “${message}”`, {}, { message });
     return { canonical, duplicate, handoff, linearRef, ts, message, wrongOwner };

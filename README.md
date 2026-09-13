@@ -154,6 +154,19 @@ reported zero validation runs remaining and MCP provisioning returned an interna
 session error. See [VALIDATION.md](VALIDATION.md) for the exact results and remaining
 acceptance cases.
 
+## Evaluate
+
+```sh
+npm run eval                          # 25 seeded trials per scenario
+npm run eval -- --trials 50 --write   # also updates EVALUATION.md and eval/results.json
+```
+
+Nine scenarios run the recorded agent and a repair against simulated GitHub, Linear, and
+Slack that also hold unrelated records: a correct repair, human edits after review and
+during a repair, a crash and restart, a lost response, a partial outage, hostile content,
+repeated requests, and missing evidence. Each trial is judged by the apps' final state and
+the requests they actually handled. Results are in [EVALUATION.md](EVALUATION.md).
+
 ## Verify
 
 ```sh

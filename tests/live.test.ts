@@ -4,6 +4,7 @@ import { approve, approveCurrent, execute, prepare, prepareCurrent, seedWorkspac
 import { connectLive, liveAdapter, readLiveConfig, type LiveConfig } from '../server/live.js';
 import { assess } from '../server/agent.js';
 import type { RecordedAction } from '../shared/types.js';
+import { fakeApps, json, team } from '../eval/fakeApps.js';
 
 const env = {
   AFTERCARE_GITHUB_TOKEN: 'github_pat_test', AFTERCARE_GITHUB_REPO: 'demo-owner/aftercare-demo',
@@ -11,68 +12,6 @@ const env = {
   AFTERCARE_SLACK_BOT_TOKEN: 'xoxb-test', AFTERCARE_SLACK_CHANNEL_ID: 'C0DEMO01',
 };
 const config = readLiveConfig(env).config!;
-const team = ['Jamie Chen', 'Alex Rivera', 'Morgan Lee'].map((name, i) => ({ id: `u${i + 1}`, name }));
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-
-/** GitHub, Linear and Slack at their real hosts, answering with their public API shapes. */
-function fakeApps(options: { members?: Array<{ id: string; name: string }>; escapeSlack?: boolean; respond?: (url: URL, body: any) => Response | undefined } = {}) {
-  const members = options.members ?? team.slice(0, 2);
-  const issues = new Map<number, string>();
-  const assignees = new Map<string, string>();
-  const deleted: string[] = [];
-  const messages: Array<{ ts: string; text: string; thread_ts?: string }> = [];
-  const requests: Array<{ method: string; url: URL; body: any; headers: Record<string, string> }> = [];
-  const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = new URL(String(input));
-    const method = init?.method ?? 'GET';
-    const body = init?.body ? JSON.parse(String(init.body)) : undefined;
-    requests.push({ method, url, body, headers: (init?.headers ?? {}) as Record<string, string> });
-    const override = options.respond?.(url, body);
-    if (override) return override;
-    if (url.origin === 'https://api.github.com') {
-      const match = url.pathname.match(/^\/repos\/demo-owner\/aftercare-demo(.*)$/);
-      if (!match) return json({ message: 'Not Found' }, 404);
-      if (match[1] === '') return json({ full_name: 'demo-owner/aftercare-demo' });
-      if (match[1] === '/issues' && method === 'POST') { issues.set(issues.size + 1, 'open'); return json({ number: issues.size, state: 'open' }, 201); }
-      const number = Number(match[1].match(/^\/issues\/(\d+)$/)?.[1]);
-      if (!issues.has(number)) return json({ message: 'Not Found' }, 404);
-      if (method === 'PATCH') issues.set(number, body.state);
-      return json({ number, state: issues.get(number) });
-    }
-    if (url.href === 'https://api.linear.app/graphql') {
-      const { query, variables: v } = body;
-      const named = (id: string | null) => members.find(m => m.id === id)?.name ?? '';
-      if (query.includes('teams {')) return json({ data: { teams: { nodes: [{ id: 'team-eng', key: 'ENG' }, { id: 'team-ops', key: 'OPS' }] } } });
-      if (query.includes('users(')) return json({ data: { users: { nodes: members } } });
-      if (query.includes('issueCreate')) { assignees.set('lin-1', named(v.i.assigneeId)); return json({ data: { issueCreate: { issue: { id: 'lin-1', identifier: 'OPS-1' } } } }); }
-      if (query.includes('issueDelete')) { deleted.push(v.id); return json({ data: { issueDelete: { success: true } } }); }
-      if (query.includes('issueUpdate')) { assignees.set(v.id, named(v.i.assigneeId)); return json({ data: { issueUpdate: { success: true } } }); }
-      return json({ data: { issue: { assignee: assignees.get(v.id) ? { name: assignees.get(v.id) } : null } } });
-    }
-    if (url.href === 'https://slack.com/api/chat.postMessage') {
-      const ts = `1700000000.00010${messages.length}`;
-      const text: string = options.escapeSlack ? body.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : body.text;
-      messages.push({ ts, text, thread_ts: body.thread_ts });
-      return json({ ok: true, ts });
-    }
-    if (url.origin + url.pathname === 'https://slack.com/api/conversations.history') return json({ ok: true, messages: [] });
-    if (url.href === 'https://slack.com/api/chat.delete') {
-      const index = messages.findIndex(m => m.ts === body.ts);
-      if (index >= 0) messages.splice(index, 1);
-      return json({ ok: true });
-    }
-    if (url.origin + url.pathname === 'https://slack.com/api/conversations.replies') {
-      // Slack reads these arguments from the query string; a JSON body would be ignored.
-      const parent = url.searchParams.get('ts');
-      const thread = messages.filter(m => m.ts === parent || m.thread_ts === parent);
-      return json(thread.length ? { ok: true, messages: thread } : { ok: false, error: 'thread_not_found' });
-    }
-    return json({ ok: false, error: 'unknown_method' });
-  }) as unknown as typeof fetch;
-  const writes = () => requests.filter(r => (r.url.hostname === 'api.github.com' && r.method !== 'GET') || r.url.pathname === '/api/chat.postMessage' || String(r.body?.query ?? '').startsWith('mutation'));
-  return { fetcher, requests, writes, issues, assignees, messages, deleted };
-}
-
 async function connected(apps = fakeApps()) {
   const w = seedWorkspace();
   await connectLive(w, config, apps.fetcher);
@@ -266,4 +205,33 @@ test('a failed Slack alert is reported without undoing the run', async () => {
   assert.equal(w.mode, 'live');
   assert.equal(w.events.at(-1)?.title, 'Slack alert not sent');
   assert.match(w.events.at(-1)?.detail ?? '', /rate_limited/);
+});
+
+test('names from other apps cannot mention the channel or add links through Slack posts', async () => {
+  const members = [{ id: 'u1', name: '<!channel> Jamie <https://attacker.example|verify>' }, { id: 'u2', name: 'Alex <@U123> Rivera' }];
+  const { w, apps, adapter } = await connected(fakeApps({ members, escapeSlack: true }));
+  const p = await prepareCurrent(w, adapter);
+  await approveCurrent(w, p.id, adapter);
+  await execute(w, p.id, () => {}, { adapter });
+  assert.equal(p.status, 'complete', 'read-back still matches the approved text');
+  const posted = apps.requests.filter(r => r.url.pathname === '/api/chat.postMessage').map(r => String(r.body.text));
+  assert.equal(posted.length, 2, 'the agent message and the correction');
+  for (const text of posted) assert.doesNotMatch(text, /<[!@#]|<https?:/);
+});
+
+test('a write refused during an outage is retried after the app recovers, with dependent steps withheld', async () => {
+  let outage = false;
+  const apps = fakeApps({ respond: (url, body) => (outage && url.hostname === 'api.github.com' && body?.state ? json({ message: 'Service Unavailable' }, 503) : undefined) });
+  const { w, adapter } = await connected(apps);
+  const p = await prepareCurrent(w, adapter);
+  await approveCurrent(w, p.id, adapter);
+  outage = true;
+  await assert.rejects(execute(w, p.id, () => {}, { adapter }), /HTTP 503/);
+  assert.equal(p.status, 'interrupted');
+  assert.equal(apps.messages.filter(m => m.thread_ts).length, 0, 'the dependent correction is withheld');
+  outage = false;
+  await execute(w, p.id, () => {}, { adapter });
+  assert.equal(p.status, 'complete');
+  assert.equal(apps.handled.filter(r => r.method === 'PATCH').length, 1, 'the close took effect once');
+  assert.ok(w.events.some(e => e.title === 'Interrupted write not applied'));
 });

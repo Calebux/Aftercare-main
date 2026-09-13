@@ -112,6 +112,11 @@ export const linear = {
   },
 };
 
+/** Slack reads &, < and > as control characters; escaping them keeps app data from becoming mentions or links. */
+export function escapeSlack(text: string) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /* Slack Web API. Errors arrive as ok:false inside a 200 response. */
 export const slack = {
   /** Slack error codes are short identifiers and safe to show; other response detail is not. */
@@ -166,7 +171,8 @@ export function providerAdapter(mode: 'twin' | 'live', locate: Locate): Provider
       const { ref, endpoint } = locate(record);
       if (ref.provider === 'github' && field === 'state') return github.writeState(endpoint, ref, value);
       if (ref.provider === 'linear' && field === 'assignee') return linear.writeAssignee(endpoint, ref, value);
-      if (ref.provider === 'slack' && field === 'correction') { await slack.post(endpoint, ref.channelId!, value, ref.ts); return; }
+      // The correction repeats names from other apps, so it is escaped before Slack can read them as mentions or links.
+      if (ref.provider === 'slack' && field === 'correction') { await slack.post(endpoint, ref.channelId!, escapeSlack(value), ref.ts); return; }
       throw new RecoveryError(`No write is defined for ${ref.provider}.${field}.`, 422);
     },
   };

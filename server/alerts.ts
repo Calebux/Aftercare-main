@@ -1,10 +1,7 @@
 import type { AgentRun } from '../shared/types.js';
-import { slack, type Endpoint } from './providers.js';
+import { escapeSlack, slack, type Endpoint } from './providers.js';
 
-/** Slack reads &, < and > as control characters; escaping them keeps recorded text from becoming mentions or links. */
-export function escapeSlack(text: string) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+export { escapeSlack };
 
 /**
  * Names what needs repair and links to the review. The link comes from the server's

@@ -8,8 +8,9 @@ The current source passed these checks on September 12, 2026:
 
 | Check | Result |
 | --- | --- |
-| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 57/57 passed |
+| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 59/59 passed |
 | Browser recovery workflow with desktop and mobile layout checks | 1/1 passed |
+| Evaluation harness: 9 scenarios × 50 seeded trials against simulated apps | 450/450 passed |
 | TypeScript check and production frontend build | Passed |
 
 Regression coverage includes changes between provider writes, held assignments,
@@ -25,7 +26,7 @@ through their public APIs.
 
 | Check | Observed result |
 | --- | --- |
-| Offline tests against GitHub, Linear and Slack request and response shapes | 19/19 passed (included above) |
+| Offline tests against GitHub, Linear and Slack request and response shapes | 21/21 passed (included above) |
 | Unauthenticated probe of Linear GraphQL | HTTP 401, error code `AUTHENTICATION_ERROR` |
 | Probe of GitHub REST with an invalid token | HTTP 401, `Bad credentials` |
 | Probe of Slack `conversations.replies` over GET with an invalid token | `ok: false`, `invalid_auth` |
@@ -76,6 +77,21 @@ Problems found and resolved during the run:
    user-facing message.
 5. A GitHub response that stalled after its headers arrived produced a generic server
    error. Stalled body reads now report that the app stopped responding.
+
+## Evaluation harness: September 13, 2026
+
+`npm run eval` runs repeated, seeded trials of nine scenarios against simulated apps that
+also hold unrelated records, and judges each trial by the apps' final state and the
+requests they actually handled. Current results are in [EVALUATION.md](EVALUATION.md).
+
+Its first run (seed 20260913, 25 trials per scenario) found two defects the tests had missed:
+
+| Scenario | First run | Defect | Fix | After the fix (50 trials) |
+| --- | --- | --- | --- | --- |
+| Partial outage | 0/25 | A write an app refused left the plan uncertain for good, although the app showed the write had not landed | When the app still shows the reviewed value and nothing was mirrored, the write is retried after the usual checks | 50/50 |
+| Hostile content in app data | 12/25 | Linear member names reached Slack unescaped, so `<!channel>` or a disguised link could appear in the channel | The correction and the agent's message are escaped for Slack | 50/50 |
+
+Both fixes have regression tests.
 
 ## Security review: September 12, 2026
 

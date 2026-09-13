@@ -11,5 +11,5 @@
     "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["client", "server", "shared", "tests", "vite.config.ts", "playwright.config.ts"]
+  "include": ["client", "server", "shared", "tests", "eval", "vite.config.ts", "playwright.config.ts"]
 }

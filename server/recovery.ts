@@ -189,6 +189,12 @@ export async function execute(w: Workspace, planId: string, persist: () => void,
         op.status = 'verified';
         event(w, 'Interrupted write reconciled', `${r.label} already contains the approved value. No duplicate write was made.`, 'success');
         persist();
+      } else if (current === op.observed && r.fields[op.field] === op.observed && r.revision === op.expectedRevision) {
+        // The app still shows the reviewed value and nothing was mirrored, so the write never took
+        // effect. It is retried only after the usual checks re-read every record, including this one.
+        op.status = 'proposed';
+        event(w, 'Interrupted write not applied', `${r.label} still shows the reviewed value. The approved change will be retried after checks.`, 'warning');
+        persist();
       } else {
         op.status = 'uncertain'; p.status = 'interrupted'; persist();
         throw new RecoveryError('The interrupted write cannot be verified. Further recovery requires investigation.');

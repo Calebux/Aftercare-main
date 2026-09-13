@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "test": "tsx --test tests/*.test.ts",
-    "test:ui": "playwright test"
+    "test:ui": "playwright test",
+    "eval": "tsx eval/run.ts"
   },
   "dependencies": {
     "express": "^5.1.0",
