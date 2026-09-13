@@ -47,10 +47,10 @@ receipt downloads), **450/450** simulated-API trials, and the TypeScript/product
 passed. The scripted investigator control passed **27/27**; it tests harness machinery,
 not model judgment.
 
-The operator confirmed the preceding live version worked in this conversation. The new
-body checks, semantic cases, and link resolution have automated coverage but have not been
-retested against real accounts during this update. Existing live results below apply to
-the earlier version; the real-model evaluation does not upgrade that claim.
+The body check and a model preservation decision were later verified against real
+accounts; see the live run with a content change during review below. Sample evidence
+cases and record-link resolution have automated coverage only. The real-model evaluation
+does not upgrade any live-account claim.
 
 ## Live demo apps
 
@@ -80,6 +80,22 @@ with the live view, the Slack alert, and AI investigation, is recorded below.
 The AI investigator ran against a real model for the first time on September 13,
 2026: `deepseek/deepseek-v4-flash` read the journal and all three records in five
 tool calls and returned a recommendation that passed policy validation.
+
+### Live run with a content change during review: September 13, 2026
+
+The evidence-dependent version (commit `2d0bf2b`) against the operator's real accounts,
+with AI investigation on (`deepseek/deepseek-v4-flash`). Checked from the downloaded
+receipt and GitHub's public API.
+
+| Check | Observed result |
+| --- | --- |
+| Recorded run and alert | 5 actions, 3 flagged; Slack alert sent |
+| First investigation | Recommended closing duplicate #28, restoring AFT-11's owner, and appending a correction |
+| Change during review | The operator added "Also migrate the audit logs" to #28; Aftercare observed the body change and blocked approval |
+| Second investigation | Chose `preserve_issue` for #28 as distinct work, `restore_owner`, and `append_correction`; the recommendation passed policy validation |
+| Repair v2 | Linear owner restored and one correction posted, both verified by read-back; #28 held without a write |
+| GitHub, checked independently through the public API | #27 and #28 open; #28 keeps the added line and has no close events |
+| Receipt | Run, latest investigation and decisions, plan, records, and events for both investigations; no credentials |
 
 ### Live run of the recorded agent: September 13, 2026
 
