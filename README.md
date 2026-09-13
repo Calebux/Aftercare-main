@@ -16,14 +16,32 @@ app records; allow time for investigation and about a minute for a cold server t
 5. **Reconcile & resume** — Aftercare checks the completed write before continuing.
 6. **Export recovery receipt**, then inspect **Evaluation**.
 
+To run a second incident type through the same engine, choose **Different incident: early release
+announcement** under **Explore a different incident** before step 1, or after **Reset**.
+
 **[Watch the 1:55 live demo](https://aftercare-ynmc.onrender.com/demo.html)** ·
 [Download video](https://github.com/Calebux/Aftercare/raw/main/client/public/aftercare-demo.mp4)
 — real apps and MCP gateway, AI investigation, deliberately injected faults and teammate edit.
 
-**Supported today:** one onboarding incident family: a duplicate issue, a wrong or removed
-owner, and a premature completion message. Evidence can lead to repair, preservation, or
-escalation. Other incident families are not repairable yet. [Validation](VALIDATION.md) ·
-[Gateway verification scope](#verification-scope) · [Limitations](#limitations)
+**Three failure classes, not one scenario.** Both supported incidents are made of the same three
+failure classes, and each class has a compensation that keeps later human work:
+
+| Failure class | Onboarding incident (tested on real accounts) | Release incident (simulated records) |
+| --- | --- | --- |
+| Duplicated write after a lost response | Second GitHub issue → closed, unless it now holds distinct work | Repeated Slack announcement → removed, unless people replied |
+| Wrong value from stale context | Wrong Linear owner → restored, unless a person changed it | Linear set to Done from a stale check → restored, unless a person changed it |
+| False report of finished work | "Acme is ready" in Slack → one threaded correction | "v2.4 is live" in Slack → one threaded correction |
+
+**Verification is general; repair is per incident.** Verification applies to any run built from the
+gateway's four recorded tools, whatever the incident: at finish, Aftercare reads the reported
+records back and refuses the run on a mismatch ([what it checks](#verification-scope)). Repair
+covers two incident definitions in [`server/incidents/`](server/incidents). A definition supplies
+each record's allowed actions, watched fields, safety rules, and plan. The engine that binds
+approval to app state, rechecks before each write, journals, reconciles, and reads back is shared.
+After onboarding moved into a definition with byte-identical model inputs, the release incident
+landed without changing `recovery.ts`, `policy.ts`, or `investigator.ts`
+([commit](https://github.com/Calebux/Aftercare/commit/be324fd)). [Validation](VALIDATION.md) ·
+[Limitations](#limitations)
 
 [Try it without keys](#try-it-without-accounts-or-keys) · [How it works](#how-it-works) ·
 [Evaluation](#evaluation) · [Judging criteria](#judging-criteria-and-evidence) ·
@@ -68,7 +86,8 @@ independent examples or an estimate of production accuracy.
 | [Frozen holdout v1](EVALUATION-HOLDOUT.md) | 4 new cases, frozen with hashes of the cases, scorer, and implementation before a single model run | **10/12**; both failures were safe |
 | [Frozen holdout v2](EVALUATION-HOLDOUT-V2.md) | 5 more new cases, frozen the same way after one v1 failure was fixed, then run once | **15/15** |
 | [Real-model investigator, development](EVALUATION-MODEL.md) | `deepseek/deepseek-v4-flash`, 9 cases × 3 trials, reused during development on simulated app state | **27/27**; the first run scored 8/27 and is [kept](EVALUATION-MODEL-BASELINE.md) |
-| Regression tests | Engine, investigator, provider clients, sessions, HTTP, and outside agents; browser workflow on desktop and mobile | **81/81** tests; **2/2** browser workflows |
+| [Second incident, real model](VALIDATION.md#second-incident-definition-september-13-2026) | Release incident on simulated app state, 4 development trials: 2 plain, 2 with replies on the repeated post | **4/4** chose the expected actions and completed; not a frozen holdout |
+| Regression tests | Engine, both incident definitions, investigator, provider clients, sessions, HTTP, and outside agents; browser workflows on desktop and mobile | **85/85** tests; **3/3** browser workflows |
 | [Recovery-engine determinism](EVALUATION.md) | Regression evidence: 9 authored failure scenarios against simulated APIs, scored by final state and handled requests. No model calls or live apps | **450/450** (50 per scenario); exercises recovery mechanics within the simulator |
 
 All model evaluations use one model through OpenRouter; there is no cross-model comparison.
@@ -182,8 +201,8 @@ Unknown Host headers get HTTP 421, and pages can't be framed
 
 | Criterion | Evidence |
 | --- | --- |
-| Technical execution (30%) | The capture, investigate, validate, approve, and execute pipeline above; GitHub REST, Linear GraphQL, and Slack Web API clients used against real accounts; an MCP gateway (JSON-RPC over streamable HTTP) and a Recorder API for outside agents; isolated per-visitor hosted mode. TypeScript end to end: an Express server, a React client, and shared types |
-| Reliability & evaluation (25%) | Recorded live recovery with a human edit; frozen holdout v1 10/12 on 4 cases and v2 15/15 on 5 new cases; real-model development 27/27 with the 8/27 baseline retained. Separate regression evidence: 450/450 simulated-engine trials, 81 tests, and 2 browser workflows. Defects found by evaluations were fixed and given regression tests |
+| Technical execution (30%) | The capture, investigate, validate, approve, and execute pipeline above; GitHub REST, Linear GraphQL, and Slack Web API clients used against real accounts; an MCP gateway (JSON-RPC over streamable HTTP) and a Recorder API for outside agents; isolated per-visitor hosted mode; incident types as definitions over a shared engine, with a second incident added without engine changes. TypeScript end to end: an Express server, a React client, and shared types |
+| Reliability & evaluation (25%) | Recorded live recovery with a human edit; frozen holdout v1 10/12 on 4 cases and v2 15/15 on 5 new cases; real-model development 27/27 with the 8/27 baseline retained. Separate regression evidence: 450/450 simulated-engine trials, 85 tests, and 3 browser workflows. The second incident scored 4/4 in real-model development trials. Defects found by evaluations were fixed and given regression tests |
 | Usefulness (20%) | For teams whose agents write to shared tools. Connect an agent through MCP, watch its actions live, get a Slack alert when a run needs repair, approve a repair that keeps people's changes, and keep a receipt. The built-in agent's full loop ran on real accounts. Willingness to pay is not yet validated |
 | Originality (15%) | Compensating transactions for agent-written SaaS records, where choosing the compensation needs judgment. The model chooses among bounded repairs or preservation, and deterministic policy plus a human approval bound to app state gate that choice. The gateway both limits an agent's reach and checks its reported work against the apps. Public documentation reviewed on September 9 didn't describe this combination ([BUILD.md](BUILD.md#research-checked-september-9-2026)); that shows distinct positioning, not proof that nobody has built it privately |
 | Demo clarity (10%) | [1:55 live MCP recovery video](https://aftercare-ynmc.onrender.com/demo.html); sample data that needs no keys; an in-app Evaluation view with retained failures; [recording notes](DEMO.md) |
@@ -192,7 +211,7 @@ Unknown Host headers get HTTP 421, and pages can't be framed
 
 ```sh
 npm install
-npm test                        # 81 tests
+npm test                        # 85 tests
 npm run eval                    # 9 failure scenarios × 25 seeded trials
 npm run eval:holdout -- --mock  # checks the frozen holdout's scorer; no model calls
 npm run dev                     # then open http://127.0.0.1:4310
@@ -398,9 +417,11 @@ offline only: provisioning was blocked by Arga account quota on September 9, 202
 
 ## Limitations
 
-- **One supported incident.** Aftercare repairs a repeated create, a wrong owner, and a premature
-  announcement across GitHub, Linear, and Slack. Other outside-agent runs are recorded and checked
-  but not repairable. Compensation logic is application-specific, as the pattern itself notes.
+- **Two incident definitions, one live.** Onboarding runs on real accounts. The release incident runs
+  on simulated records only: deleting a Slack message and changing a Linear state aren't built as
+  provider writes, and recorded gateway runs are detected as repairable only for onboarding. Other
+  outside-agent runs are verified and recorded but not repairable. Each new incident still needs its
+  own definition, because compensation logic is application-specific, as the pattern itself notes.
 - **No atomic compare-and-update.** Providers don't offer it here, so an edit between the final read
   and a write can still be overwritten. Reading the write target last narrows that gap but doesn't
   close it.
@@ -441,7 +462,9 @@ Built at the event, starting at 9:22 AM Pacific:
 - the fix that lets an investigation continue after an out-of-scope read, and frozen holdout v2
   (commits `ab44e49` and `df8310e`);
 - the Render deployment, and corrective feedback for malformed tool arguments, a problem found on
-  the live site.
+  the live site;
+- incident definitions: onboarding's rules moved into configuration, then a second incident added
+  without engine changes (commits `cc150a8` and `be324fd`).
 
 ## More detail
 

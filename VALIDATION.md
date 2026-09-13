@@ -8,8 +8,8 @@ The current source is checked on September 13, 2026; the tables below distinguis
 
 | Check | Result |
 | --- | --- |
-| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 81/81 passed |
-| Browser recovery workflow with desktop and mobile layout checks | 2/2 passed |
+| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 85/85 passed |
+| Browser recovery workflows with desktop and mobile layout checks, including the second incident | 3/3 passed |
 | Evaluation harness: 9 scenarios × 50 seeded trials against simulated apps | 450/450 passed |
 | TypeScript check and production frontend build | Passed |
 
@@ -171,6 +171,32 @@ The run records tool-call counts but not which records the model asked for, so i
 whether any trial reached the new refusal. These are still five authored examples from one workflow
 family, repeated three times, not a general benchmark. Details are in
 [EVALUATION-HOLDOUT-V2.md](EVALUATION-HOLDOUT-V2.md).
+
+## Second incident definition: September 13, 2026
+
+Built during the event. Commit `cc150a8` moved onboarding's rules (allowed actions, watched fields,
+safety rules, the rule fallback, plan compilation, the simulated human edit, and investigator
+guidance) into `server/incidents/onboarding.ts`. The approval, recheck, journal, reconciliation, and
+read-back code no longer names an app, field, or action. No behavior change was observed: the
+onboarding investigator's system prompt, user message, and tool schema hashed identically before and
+after; 81/81 tests, 225/225 engine evaluation trials, 9/9 scripted investigator trials, and both
+holdout scorer checks passed.
+
+Commit `be324fd` then added a release incident: `server/incidents/release.ts`, one registry entry, a
+sample scenario, display copy, and tests. `git show --stat` lists no change to `server/recovery.ts`,
+`server/policy.ts`, or `server/investigator.ts`. The release agent repeats a Slack announcement after
+a lost response, moves Linear REL-24 to Done from a stale check, and announces the release early.
+
+| Check | Result |
+| --- | --- |
+| Release incident unit tests | 4 new tests: a full repair; a state change after review blocks the old approval and is kept; a reply to the repeat after approval stops its removal before any write; policy and investigator accept only release actions |
+| Full suite and browser workflows | 85/85 tests; 3/3 browser workflows in a fresh clone, including choosing and repairing the release incident |
+| Onboarding after adding the release incident | Investigator inputs still byte-identical; 225/225 engine evaluation trials; both holdout scorer checks passed |
+| Real model (`deepseek/deepseek-v4-flash`), simulated app state, 2:17 PM Pacific | 4/4 trials chose the expected actions and completed. Two plain trials removed the repeat, restored In Review, and posted one correction; two trials with replies on the repeat kept it and did the rest. One rejected response was corrected within the investigation |
+
+Limits: the release incident runs on simulated records only. Deleting a Slack message and changing a
+Linear state are not implemented as live provider writes, and no recorded gateway run produces this
+incident yet. Four real-model trials are development evidence, not a frozen holdout.
 
 ## Hosted deployment on Render: September 13, 2026
 
