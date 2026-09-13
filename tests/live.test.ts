@@ -46,6 +46,7 @@ test('connecting recreates the failed run in the configured repo, team and chann
   assert.equal(w.records[2].external?.channelId, 'C0DEMO01');
   assert.deepEqual(w.run?.actions.map(a => a.assessment), ['setup', 'expected', 'needs_repair', 'needs_repair', 'needs_repair']);
   assert.equal(w.run?.actions[1].outcome, 'reported_timeout', 'the first create succeeded although the agent saw a timeout');
+  assert.equal(w.events.some(e => e.detail.endsWith('Local scenario data.')), false, 'a live receipt carries no sample placeholder event');
   assert.deepEqual(w.run?.actions.filter(a => a.recordId).map(a => a.recordId), w.records.map(r => r.id));
   assert.equal(apps.requests.some(r => r.url.pathname === '/user/repos' || r.url.pathname === '/api/conversations.create' || String(r.body?.query).includes('teamCreate')), false, 'only existing demo resources are used');
   const auth = (host: string) => apps.requests.find(r => r.url.hostname === host)?.headers.Authorization;
@@ -61,6 +62,7 @@ test('an approved repair writes to the live APIs and verifies each outcome by re
   await execute(w, p.id, () => {}, { adapter });
   assert.equal(p.status, 'complete');
   assert.deepEqual([...apps.issues], [[1, 'open'], [2, 'closed']], 'only the duplicate is closed');
+  assert.equal(w.events.at(-1)?.detail, '3 corrections verified. 0 records preserved without a write.');
   assert.equal(apps.assignees.get('lin-1'), 'Jamie Chen');
   const replies = apps.messages.filter(m => m.thread_ts === w.records[2].external?.ts);
   assert.equal(replies.length, 1);
@@ -81,6 +83,7 @@ test('a reassignment made directly in Linear after review is preserved', async (
   await execute(w, next.id, () => {}, { adapter });
   assert.equal(next.status, 'complete');
   assert.equal(apps.assignees.get('lin-1'), 'Morgan Lee');
+  assert.equal(w.events.at(-1)?.detail, '2 corrections verified. 1 record preserved without a write.');
   assert.equal(apps.writes().filter(r => String(r.body?.query).includes('issueUpdate')).length, 1, 'only the seeded mistake was written to Linear');
   assert.match(apps.messages.at(-1)!.text, /Handoff owner: Morgan Lee/);
 });

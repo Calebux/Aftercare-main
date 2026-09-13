@@ -272,7 +272,9 @@ export async function execute(w: Workspace, planId: string, persist: () => void,
       throw new RecoveryError('Some operations remain unconfirmed. Reconcile before continuing.');
     }
     p.status = 'complete';
-    event(w, 'Recovery verified', `${p.operations.filter(o => o.status === 'verified').length} corrections verified. ${p.operations.filter(o => o.status === 'held').length} records preserved without a write.`, 'success');
+    const verifiedCount = p.operations.filter(o => o.status === 'verified').length;
+    const preservedCount = p.operations.filter(o => o.status === 'held').length;
+    event(w, 'Recovery verified', `${verifiedCount} correction${verifiedCount === 1 ? '' : 's'} verified. ${preservedCount} record${preservedCount === 1 ? '' : 's'} preserved without a write.`, 'success');
     persist(); return p;
   } catch (error) {
     if (p.status === 'executing' || p.operations.some(o => o.status === 'running' || o.status === 'uncertain')) {

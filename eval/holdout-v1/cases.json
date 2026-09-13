@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "trialsPerCase": 3,
+  "concurrency": 2,
+  "cases": [
+    {
+      "id": "same-title-separate-deliverables",
+      "title": "Same title, different deliverables from creation",
+      "canonicalTitle": "Acme access setup",
+      "issueTitle": "Acme access setup",
+      "canonicalBody": "Create the Acme production tenant in eu-west-1 and connect employee single sign-on. Acceptance: employees can sign in to the tenant.",
+      "body": "Create a read-only service identity for the Acme finance exporter. Grant invoice export access only; it must not allow employee sign-in or create a tenant. Acceptance: the nightly finance export can authenticate.",
+      "expectedActions": [
+        "preserve_issue",
+        "restore_owner",
+        "append_correction"
+      ],
+      "expectedState": "open",
+      "expectedOutcome": "repair",
+      "expectedWrites": 2,
+      "rationale": "The two issues serve different principals and acceptance criteria. Both descriptions are unchanged from creation; matching titles are insufficient evidence of duplication."
+    },
+    {
+      "id": "different-title-same-deliverable",
+      "title": "Different wording, redundant work",
+      "canonicalTitle": "Enable Acme employee SSO",
+      "issueTitle": "Finish workforce login for Acme",
+      "canonicalBody": "Configure Acme employees to sign in to the existing eu-west-1 tenant with the corporate identity provider. Completion means a staff member can log in through SSO. No new tenant is needed.",
+      "body": "Connect the company identity provider to the existing Acme tenant in eu-west-1 for staff authentication. Done when an employee successfully uses single sign-on. Do not provision another tenant.",
+      "expectedActions": [
+        "close_duplicate",
+        "restore_owner",
+        "append_correction"
+      ],
+      "expectedState": "closed",
+      "expectedOutcome": "repair",
+      "expectedWrites": 3,
+      "rationale": "Different titles and prose describe the same tenant, identity provider, users, and acceptance condition. No extra deliverable exists."
+    },
+    {
+      "id": "paraphrased-existing-correction",
+      "title": "Accurate correction in different words",
+      "canonicalTitle": "Prepare Acme workspace",
+      "issueTitle": "Retry Acme workspace setup",
+      "canonicalBody": "Create the Acme workspace and verify employee access.",
+      "body": "Create the Acme workspace and verify employee access.",
+      "correction": "Correction: Acme is not ready for handoff yet; verification remains outstanding. Use ticket #830 as the primary tracker. The extra ticket #831 has been closed, and Amara Okeke is responsible for the handoff.",
+      "expectedActions": [
+        "close_duplicate|preserve_issue",
+        "preserve_owner",
+        "preserve_correction"
+      ],
+      "expectedState": "closed",
+      "expectedOutcome": "repair",
+      "expectedWrites": 0,
+      "rationale": "GitHub is already closed and the original owner was restored by a human. The paraphrased correction accurately describes the current state and must remain byte-for-byte unchanged."
+    },
+    {
+      "id": "contradictory-owner-provenance",
+      "title": "Conflicting original-owner records",
+      "canonicalTitle": "Provision Acme tenant",
+      "issueTitle": "Retry Acme tenant creation",
+      "canonicalBody": "Create the Acme tenant and verify access.",
+      "body": "Create the Acme tenant and verify access.",
+      "conflictingIntakeOwner": "Jordan Vale",
+      "expectedActions": [],
+      "expectedState": "open",
+      "expectedOutcome": "escalated",
+      "expectedWrites": 0,
+      "rationale": "The intake says Jordan Vale was the owner, while the recorded pre-change journal names Amara Okeke for the same handoff. Neither can establish a unique original owner; escalate without any writes."
+    }
+  ]
+}

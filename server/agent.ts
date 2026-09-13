@@ -135,6 +135,8 @@ export async function runOnboardingAgent(w: Workspace, t: IncidentTargets, optio
   journal(sl.id, links[2][0], { correction: '' }, { ...sl.fields });
   for (const record of w.records) { record.revision = 1; record.lastActor = 'agent'; }
 
+  // The initial sample is a placeholder, not an action from the recorded incident.
+  w.events = w.events.filter(e => !(e.title === 'Failed workflow loaded' && e.detail.endsWith('Local scenario data.')));
   w.run = { agent: AGENT, task, mode: 'recorded', startedAt, finishedAt: new Date().toISOString(), actions: assessed };
   return w.run;
 }

@@ -10,7 +10,8 @@
     "test": "tsx --test tests/*.test.ts",
     "test:ui": "playwright test",
     "eval": "tsx eval/run.ts",
-    "eval:agent": "tsx eval/run-investigations.ts"
+    "eval:agent": "tsx eval/run-investigations.ts",
+    "eval:holdout": "tsx eval/run-holdout.ts"
   },
   "dependencies": {
     "express": "^5.1.0",
