@@ -3,6 +3,7 @@ import type { AgentRun, AppName, AuditEvent, Fields, RecordState, RecordedAction
 
 import { RecoveryError } from './errors.js';
 import { ruleDecisions, validateDecisions } from './policy.js';
+import { definitionFor } from './incidents/index.js';
 export { RecoveryError } from './errors.js';
 
 /**
@@ -71,9 +72,9 @@ const executions = new WeakSet<Workspace>();
 export async function refreshRecords(w: Workspace, adapter: ProviderAdapter = localAdapter) {
   if (executions.has(w)) throw new RecoveryError('A repair is already running.');
   if (adapter.mode === 'local') return;
-  const fields = { GitHub: 'state', Linear: 'assignee', Slack: 'correction' } as const;
+  const incident = definitionFor(w);
   const captured = snapshot(w);
-  const observations = w.records.flatMap(r => [fields[r.app], ...(r.app === 'GitHub' && r.fields.body !== undefined ? ['body', 'canonicalBody'] : [])].map(field => ({ r, field })));
+  const observations = w.records.flatMap(r => incident.watched(r).map(field => ({ r, field })));
   const values = await Promise.all(observations.map(({ r, field }) => adapter.read(r, field)));
   if (snapshot(w) !== captured) throw new RecoveryError('App state changed while refreshing. Try again.');
   let changed = false;
@@ -114,29 +115,8 @@ export function prepare(w: Workspace, decisions?: RepairDecision[]): RepairPlan 
   assertCanPrepare(w);
   const selected = decisions ?? ruleDecisions(w);
   validateDecisions(w, selected);
-  const github = w.records.find(r => r.app === 'GitHub')!;
-  const linear = w.records.find(r => r.app === 'Linear')!;
-  const ownerSource = w.sourceActions.find(s => s.recordId === linear.id)!;
-  const canonical = github.fields.canonicalIssue;
-  const duplicate = github.external?.issueNumber ? `#${github.external.issueNumber}` : github.label;
-  const held = selected.find(d => d.recordId === linear.id)!.action === 'preserve_owner';
-  const keepIssue = selected.find(d => d.recordId === github.id)!.action === 'preserve_issue';
-  const owner = held ? linear.fields.assignee : ownerSource.before.assignee;
-  const correction = `Correction: onboarding is still pending verification. Track GitHub ${canonical}; ${keepIssue ? `issue ${duplicate} is preserved for separate review` : `the duplicate ${duplicate} is closed`}. Handoff owner: ${owner}.`;
-  const spec: Array<Omit<RepairOperation, 'id' | 'expectedRevision' | 'observed'>> = w.records.map(r => {
-    const d = selected.find(d => d.recordId === r.id)!;
-    const preserve = d.action.startsWith('preserve_');
-    const field = r.app === 'GitHub' ? 'state' : r.app === 'Linear' ? 'assignee' : 'correction';
-    const titles = { close_duplicate: 'Close the duplicate issue', preserve_issue: 'Preserve the issue for separate review', restore_owner: 'Restore the original owner', preserve_owner: 'Preserve the human assignment', append_correction: 'Append a correction to the thread', preserve_correction: 'Keep the existing correction' };
-    return { recordId: r.id, app: r.app, title: titles[d.action], field,
-      proposed: preserve ? r.fields[field] ?? '' : r.app === 'GitHub' ? 'closed' : r.app === 'Linear' ? owner : correction,
-      reason: d.reason, status: d.action === 'preserve_correction' ? 'unchanged' : preserve ? 'held' : 'proposed', evidenceId: d.evidenceId,
-      ...(r.app === 'GitHub' && r.fields.body !== undefined ? { guards: { body: r.fields.body, canonicalBody: r.fields.canonicalBody ?? '' } } : {}),
-    };
-  });
-  // Rules cannot judge the meaning of a different existing correction. A model can assess it.
-  const existing = w.records.find(r => r.app === 'Slack')!.fields.correction;
-  if (!decisions && existing && existing !== correction) throw new RecoveryError('An existing correction needs investigation before it can be preserved; no second reply will be posted.', 422);
+  // The incident definition compiles validated decisions into exact fields and values.
+  const { operations: spec, note } = definitionFor(w).compile(w, selected, !decisions);
   const plan: RepairPlan = {
     id: randomUUID(), version: w.plans.length + 1, createdAt: now(), status: 'review', snapshot: snapshot(w),
     operations: spec.map(op => {
@@ -147,7 +127,7 @@ export function prepare(w: Workspace, decisions?: RepairDecision[]): RepairPlan 
   };
   w.plans.push(plan);
   if (!decisions) delete w.investigation;
-  event(w, `Repair v${plan.version} prepared`, `${plan.operations.filter(o => o.status === 'proposed').length} proposed writes, each linked to recorded evidence.${held ? ' A later human assignment will be preserved.' : ''}`);
+  event(w, `Repair v${plan.version} prepared`, `${plan.operations.filter(o => o.status === 'proposed').length} proposed writes, each linked to recorded evidence.${note}`);
   return plan;
 }
 /** Escalation invalidates an old review and survives reloads; it never creates an executable plan. */
@@ -167,10 +147,9 @@ export function acceptInvestigation(w: Workspace, finding: Investigation) {
 }
 export function humanEdit(w: Workspace) {
   if (w.mode !== 'local') throw new RecoveryError(`Make the assignment change in ${w.mode === 'live' ? 'Linear' : 'the Linear twin'}, then review an updated plan.`);
-  const r = w.records.find(r => r.app === 'Linear')!;
-  r.fields.assignee = r.fields.assignee === 'Morgan Lee' ? 'Sam Taylor' : 'Morgan Lee';
+  const { record: r, detail } = definitionFor(w).humanEdit(w);
   r.revision++; r.lastActor = 'human';
-  event(w, 'Human edit detected', `${r.label} was reassigned to ${r.fields.assignee}. The previous preview no longer describes the current state.`, 'warning');
+  event(w, 'Human edit detected', `${detail} The previous preview no longer describes the current state.`, 'warning');
   const p = currentPlan(w);
   if (p && ['review', 'approved'].includes(p.status)) p.status = 'stale';
 }

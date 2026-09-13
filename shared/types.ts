@@ -17,6 +17,8 @@ export interface RecordState {
   revision: number;
   lastActor: 'agent' | 'human' | 'aftercare';
   external?: ExternalRef;
+  /** The record's part in its incident when the app alone doesn't identify it, such as two Slack messages. */
+  role?: string;
 }
 export interface SourceAction {
   id: string;
@@ -90,7 +92,8 @@ export interface AgentRun {
   actions: RecordedAction[];
 }
 export interface AuditEvent { id: string; at: string; title: string; detail: string; kind: 'info' | 'warning' | 'success' }
-export type DecisionAction = 'close_duplicate' | 'preserve_issue' | 'restore_owner' | 'preserve_owner' | 'append_correction' | 'preserve_correction';
+/** One of the actions the workspace's incident definition allows for a record. */
+export type DecisionAction = string;
 export interface RepairDecision { recordId: string; action: DecisionAction; evidenceId: string; reason: string }
 export interface Investigation {
   provider: 'openrouter' | 'scenario'; model: string; summary: string;
@@ -104,6 +107,8 @@ export interface Workspace {
   /** Minted per run and server-side only; stripped before the workspace is served. */
   twinTokens?: Partial<Record<ProviderName, string>>;
   incidentId: string;
+  /** The incident definition this workspace follows; absent means onboarding. */
+  incident?: string;
   createdAt: string;
   records: RecordState[];
   sourceActions: SourceAction[];
