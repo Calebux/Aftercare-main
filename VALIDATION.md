@@ -161,6 +161,7 @@ of the sample incident, each started as a new visitor:
 | Live, 11:48 AM | Repair recommended in 16 seconds after 5 tool calls; plan v1 ready for review |
 | Local, 6 trials before the fix | 5 completed and 1 failed the same way. Every response came from the provider Baidu, and the failure was `submit_repair` arguments that were not valid JSON |
 | Local, 6 trials after the fix | 6 completed; 2 recovered after one malformed call each |
+| Live, 12:45 PM, after deploying the fix | 3 new visitors at once: all 3 recommended repairs (5, 5, and 6 tool calls; one rejected response corrected), with plans ready for review within 22 seconds. GitHub shows Render's deploy of `fd5d354` succeeded at 11:53 AM |
 
 Malformed or empty tool arguments now get corrective feedback within the existing budgets instead of
 ending the investigation, and a regression test covers this. The fix came after holdout v2, so no
