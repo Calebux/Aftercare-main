@@ -193,6 +193,7 @@ a lost response, moves Linear REL-24 to Done from a stale check, and announces t
 | Full suite and browser workflows | 85/85 tests; 3/3 browser workflows in a fresh clone, including choosing and repairing the release incident |
 | Onboarding after adding the release incident | Investigator inputs still byte-identical; 225/225 engine evaluation trials; both holdout scorer checks passed |
 | Real model (`deepseek/deepseek-v4-flash`), simulated app state, 2:17 PM Pacific | 4/4 trials chose the expected actions and completed. Two plain trials removed the repeat, restored In Review, and posted one correction; two trials with replies on the repeat kept it and did the rest. One rejected response was corrected within the investigation |
+| Hosted instance after Render deployed `2e1cc7e`, 2:22 PM Pacific | As a new visitor, the release scenario loaded, and the AI investigator used 5 tool calls to choose removing the repeat, restoring the state, and appending a correction; plan v1 was ready for review |
 
 Limits: the release incident runs on simulated records only. Deleting a Slack message and changing a
 Linear state are not implemented as live provider writes, and no recorded gateway run produces this
