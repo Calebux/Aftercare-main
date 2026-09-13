@@ -4,11 +4,13 @@ Use a dedicated repository, Linear team, and Slack channel. Start with a fresh r
 incident so GitHub body evidence is captured. Connect apps before recording. Enable the
 configured AI investigator and have the actual provider records open in adjacent tabs.
 The failed onboarding agent is an intentionally fault-injected demonstration; the recovery
-investigator is the model making evidence-dependent decisions.
+investigator is the model making evidence-dependent decisions. Before recording, create an agent
+key in **Bring your own agent** and have `AFTERCARE_AGENT_KEY=aft_... npm run agent:example -- "Owner name"`
+ready in a terminal beside the browser. Keep the key out of the frame, and revoke it afterward.
 
 | Time | Screen and action | Narration |
 | --- | --- | --- |
-| 0–15s | Recorded agent actions and the Slack alert | “Your agent failed halfway through three apps. Aftercare repairs the damage while preserving what people changed afterward.” |
+| 0–15s | Run the example agent; show its actions arriving live, then the Slack alert | “Our onboarding agent works through Aftercare’s MCP gateway, so every call is recorded and checked against the apps. It failed halfway through three apps, and Aftercare caught it.” |
 | 15–40s | Investigate, then show the proposed fields and source evidence | “It compares the recorded calls with what the apps contain now. Each proposed change cites its evidence.” |
 | 40–65s | Change the assignee directly in Linear, then try approving | “While it prepared this repair, a teammate changed the owner. That approval is now stale.” |
 | 65–85s | Investigate again; point to the preserved assignment; approve | “The updated plan keeps the teammate’s decision and repairs the remaining records.” |
