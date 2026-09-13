@@ -32,8 +32,9 @@ read the action journal → inspect all three current app records → submit a s
 recommendation or escalate. Deterministic policy validation rejects unsupported
 actions, missing evidence, skipped reads, and attempts to overwrite human decisions.
 The model cannot approve or execute changes. Requests are limited to eight rounds,
-20 tool calls, and a two-minute investigation budget. Live inference has not been
-verified until a local key is supplied; automated model tests use stub responses.
+20 tool calls, and a two-minute investigation budget. Live model inference and the recorded
+demo flow passed on September 13, 2026; see [VALIDATION.md](VALIDATION.md). Automated
+regression tests use stub responses; repeated real-model results are reported separately below.
 
 Without a key the UI uses explicitly labeled scenario rules.
 
@@ -145,8 +146,8 @@ refuses writes rather than falling back to the simulation.
 
 Unless demo apps or twins are connected, GitHub, Linear, and Slack records are local
 simulations. There is no production identity, authorization, multi-user database, or
-live-provider concurrency enforcement. The server binds to localhost and should remain
-local during this phase.
+live-provider concurrency enforcement. The default server binds to localhost; the
+explicit hosted setup above enables isolated visitor sessions, not production identity or authorization.
 
 Four of five live acceptance cases have passed against real accounts. The
 earlier Arga attempt on September 9, 2026 was blocked when Arga’s provisioning API
@@ -154,18 +155,66 @@ reported zero validation runs remaining and MCP provisioning returned an interna
 session error. See [VALIDATION.md](VALIDATION.md) for the exact results and remaining
 acceptance cases.
 
+## Evidence-dependent investigation
+
+The model chooses `close_duplicate` or `preserve_issue`, `restore_owner` or
+`preserve_owner`, and `append_correction` or `preserve_correction`; it can also
+escalate the entire incident with an explanation. Those validated decisions compile
+into the repair plan. The executor still controls exact fields, values, write order,
+approval, and read-back; model output never supplies arbitrary write payloads.
+
+Before preparing a local sample, use **Explore a different incident** to choose a
+redundant issue, distinct work, conflicting ownership evidence, or an existing correction.
+With AI enabled, the investigator compares source content and current observations.
+With AI disabled, explicitly labeled rules provide conservative structural checks;
+they do not evaluate semantic equivalence.
+
+New recorded live runs capture the GitHub issue body. Preparation and approval refresh
+it and the canonical issue body; execution rechecks those evidence fields before each
+write. A changed body blocks closure. Ownership provenance conflicts require escalation;
+existing corrections cannot receive a second correction. Escalation survives reload and
+invalidates any previous review. Old saved incidents without recorded body evidence retain
+the earlier, narrower checks; create a fresh incident to demonstrate content checks.
+
+The model must judge whether unchanged content represents distinct work and whether an
+existing correction is accurate. The policy is not a semantic oracle. GitHub comments,
+attachments, and unrelated production telemetry are outside the current evidence scope.
+
+Live repair cards link directly to provider records. Receipts now include the source
+journal, recorded run, investigation, plan, observed app state, and activity.
+See [DEMO.md](DEMO.md) for the two-minute demonstration and [SYSTEM.md](SYSTEM.md)
+for the architecture and reliability brief.
+
 ## Evaluate
 
 ```sh
 npm run eval                          # 25 seeded trials per scenario
-npm run eval -- --trials 50 --write   # also updates EVALUATION.md and eval/results.json
+npm run eval -- --trials 50 --write   # updates EVALUATION.md and eval/results.json
+npm run eval:agent -- --mode mock --trials 3 --write  # scripted harness control
+npm run eval:agent -- --mode model --trials 3 --write # real OpenRouter calls; simulated app state
 ```
 
 Nine scenarios run the recorded agent and a repair against simulated GitHub, Linear, and
 Slack that also hold unrelated records: a correct repair, human edits after review and
 during a repair, a crash and restart, a lost response, a partial outage, hostile content,
 repeated requests, and missing evidence. Each trial is judged by the apps' final state and
-the requests they actually handled. Results are in [EVALUATION.md](EVALUATION.md).
+the requests they actually handled. No model is called in that suite. Results are in
+[EVALUATION.md](EVALUATION.md).
+
+The separate investigator suite runs nine cases: normal recovery, a later human edit,
+lost responses, missing evidence, malicious source content, distinct work, conflicting
+ownership, an accurate existing correction, and a conflicting correction. It reports
+correct outcomes, human preservation, duplicate effects, and investigation latency with
+actual denominators. `--mode model` uses the configured OpenRouter key and model, incurs
+inference charges, and sends only synthetic fixtures; it never loads app connections.
+
+[Real-model results](EVALUATION-MODEL.md) and [scripted control](EVALUATION-MOCK.md) are
+separate artifacts. Both use independent in-memory app state. Terminal policy rejections count
+as failed agent trials, even when they prevent unsafe writes. Rejected intermediate
+responses are reported separately; bounded feedback lets the model correct them or
+escalate within the original eight-round, twenty-call, two-minute budget. Partial runs retain their
+completed denominators. The UI's Evaluation view keeps these separate from recovery-engine
+results and the [live-account acceptance record](VALIDATION.md).
 
 ## Verify
 

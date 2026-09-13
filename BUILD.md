@@ -6,12 +6,22 @@ and receipt export. OpenRouter investigation, twin adapters, and live demo-app
 adapters are implemented, and a full repair has passed against real apps. The recorded
 agent, Slack alert, and AI investigation have also run against real apps.
 
-Validation: 59 automated tests, one browser workflow, and 450 seeded evaluation trials passed, including
+Validation: 70 regression tests, two browser workflows, 450 simulated-API trials, and 27 real-model trials on simulated state passed. The earlier 8/27 model baseline and current limits are retained in VALIDATION.md. Coverage includes
 HTTP route concurrency coverage and desktop/mobile checks. TypeScript checking
 and the production frontend build passed. Arga twin provisioning was blocked on
 September 9, 2026 by account quota; the project is not buying more runs and now
 targets free GitHub, Linear, and Slack demo accounts directly. Live cases 1–4
 passed on September 12, 2026. See [VALIDATION.md](VALIDATION.md) for the acceptance record.
+
+## Evidence-dependent planning update
+
+The investigator now selects supported repair or preservation actions, and those decisions
+compile into the executable plan. Conflicting evidence produces a durable escalation.
+Live GitHub body observations guard closure; existing Slack corrections cannot receive a
+second correction. Local sample variants, direct provider links, richer receipts, and a
+separate real-model evaluation are implemented. Bounded feedback lets the investigator
+correct rejected responses without expanding its execution authority or budgets.
+See [SYSTEM.md](SYSTEM.md), [DEMO.md](DEMO.md), and [EVALUATION-MODEL.md](EVALUATION-MODEL.md).
 
 ## Product decision
 

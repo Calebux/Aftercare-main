@@ -1,15 +1,15 @@
 # Validation record
 
-Latest update: September 12, 2026. Arga live attempt recorded September 9 at 13:24 UTC.
+Latest update: September 13, 2026. Arga live attempt recorded September 9 at 13:24 UTC.
 
 ## Local checkpoint
 
-The current source passed these checks on September 12, 2026:
+The current source is checked on September 13, 2026; the tables below distinguish local checks from earlier live observations.
 
 | Check | Result |
 | --- | --- |
-| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 59/59 passed |
-| Browser recovery workflow with desktop and mobile layout checks | 1/1 passed |
+| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 70/70 passed |
+| Browser recovery workflow with desktop and mobile layout checks | 2/2 passed |
 | Evaluation harness: 9 scenarios × 50 seeded trials against simulated apps | 450/450 passed |
 | TypeScript check and production frontend build | Passed |
 
@@ -17,6 +17,40 @@ Regression coverage includes changes between provider writes, held assignments,
 refreshed approvals, concurrent execution and reset requests, accepted writes with
 lost responses, failed read-back, final state checks, and actual twin issue labels.
 Provider doubles establish local behavior; they do not establish live API compatibility.
+
+## Evidence-dependent decisions: September 13, 2026
+
+Implemented model-selected preservation and repair, durable escalation, source-aware
+plan snapshots, GitHub body guards, existing-correction preservation, and provider links.
+The model's chosen actions now determine the plan; explanations alone do not.
+
+The first real-model evaluation of the expanded behavior passed **8/27** trials with
+`deepseek/deepseek-v4-flash`. Incomplete recommendations, missing structured escalation,
+and provider/network errors caused failures. That full baseline is retained in
+[EVALUATION-MODEL-BASELINE.md](EVALUATION-MODEL-BASELINE.md) and
+`eval/investigation-model-baseline.json`; these are real-model calls on synthetic evidence,
+not live-app acceptance.
+
+The failures motivated clearer evidence-ID/length requirements and bounded corrective
+feedback. Rejected responses cannot create a plan; the model can correct them or explicitly
+escalate within the existing eight-round, twenty-tool-call, two-minute budgets. The revised
+run passed **27/27**, with **6/6** eligible human-preservation checks, **0 duplicate side effects
+across 39 accepted writes**, and **19 rejected intermediate responses** corrected or followed by
+explicit escalation within the budgets. It is reported in [EVALUATION-MODEL.md](EVALUATION-MODEL.md), including actual denominators,
+terminal failures, and rejected intermediate responses. The same authored development
+cases were reused, so this is iteration evidence, not a held-out generalization test.
+The baseline used serial trials; the revised run uses three concurrent trials, so latency
+changes cannot be attributed solely to the implementation change.
+
+Current verification: **70/70** regression tests, **2/2** browser workflows (including both
+receipt downloads), **450/450** simulated-API trials, and the TypeScript/production build
+passed. The scripted investigator control passed **27/27**; it tests harness machinery,
+not model judgment.
+
+The operator confirmed the preceding live version worked in this conversation. The new
+body checks, semantic cases, and link resolution have automated coverage but have not been
+retested against real accounts during this update. Existing live results below apply to
+the earlier version; the real-model evaluation does not upgrade that claim.
 
 ## Live demo apps
 

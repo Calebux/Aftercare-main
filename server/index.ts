@@ -1,13 +1,16 @@
 import express, { type Request, type Response } from 'express';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { seedWorkspace, prepare, prepareCurrent, approveCurrent, refreshRecords, execute, humanEdit, RecoveryError, snapshot, event, localAdapter } from './recovery.js';
+import { seedWorkspace, assertCanPrepare, acceptInvestigation, prepareCurrent, approveCurrent, refreshRecords, execute, humanEdit, RecoveryError, snapshot, event, localAdapter } from './recovery.js';
 import { provisionAndSeed, twinAdapter, twinCredentials } from './twins.js';
 import { argaConfig } from './arga.js';
 import { investigate } from './investigator.js';
 import { connectLive, liveAdapter, readLiveConfig } from './live.js';
 import { connectionView, connectionsFromEnv, identify, isProvider, listResources, liveConfigFor, selectResource } from './connections.js';
 import { createSessions, type Slot } from './sessions.js';
+import { evidenceScenario } from './scenarios.js';
+import { evidenceScenarios, type EvidenceScenario } from '../shared/scenarios.js';
+import { recordLink } from './links.js';
 import type { Workspace } from '../shared/types.js';
 
 if (existsSync('.env')) process.loadEnvFile('.env');
@@ -95,6 +98,12 @@ function claim(slot: Slot, action: string) {
 }
 
 app.get('/api/workspace', (req, res) => withSlot(req, res, slot => res.json(publicView(slot.workspace))));
+app.get('/api/records/:id/open', (req, res) => withSlot(req, res, async slot => {
+  const record = slot.workspace.records.find(r => r.id === req.params.id);
+  const config = liveConfigFor(slot.connections);
+  if (slot.workspace.mode !== 'live' || !record || !config) throw new RecoveryError('Connect the live apps to open this record.', 404);
+  res.redirect(302, await recordLink(record, config));
+}));
 app.get('/api/config', (req, res) => withSlot(req, res, slot => res.json({
   investigator: modelEnabled ? 'openrouter' : 'scenario',
   model: process.env.OPENROUTER_MODEL || 'OpenRouter account default',
@@ -111,8 +120,8 @@ app.get('/api/connections', (req, res) => withSlot(req, res, slot => res.json(co
 app.get('/api/run/live', (req, res) => withSlot(req, res, slot => res.json({ run: slot.liveRun ?? null })));
 // A fixed, committed file: nothing from the request is used to locate it.
 app.get('/api/evaluation', (_req, res) => {
-  try { res.json({ evaluation: JSON.parse(readFileSync(resolve('eval/results.json'), 'utf8')) }); }
-  catch { res.json({ evaluation: null }); }
+  const read = (file: string) => { try { return JSON.parse(readFileSync(resolve(file), 'utf8')); } catch { return null; } };
+  res.json({ evaluation: read('eval/results.json'), investigations: { mock: read('eval/investigation-mock.json'), model: read('eval/investigation-model.json') } });
 });
 app.get('/api/connections/:provider/resources', (req, res) => withSlot(req, res, async slot => {
   const provider = req.params.provider;
@@ -148,7 +157,7 @@ app.post('/api/:action', (req, res) => withSlot(req, res, async slot => {
         const workspace = slot.workspace;
         if (modelEnabled && process.env.OPENROUTER_API_KEY) {
           // Validate preparation eligibility before spending model calls.
-          prepare(structuredClone(workspace));
+          assertCanPrepare(workspace);
           await refreshRecords(workspace, adapterFor(slot));
           const captured = structuredClone(workspace);
           const expected = snapshot(captured);
@@ -156,11 +165,20 @@ app.post('/api/:action', (req, res) => withSlot(req, res, async slot => {
           const finding = await investigate(captured, { key: process.env.OPENROUTER_API_KEY, model: process.env.OPENROUTER_MODEL, onTool: detail => { event(workspace, 'Investigator tool call', detail); persist(); } });
           await refreshRecords(workspace, adapterFor(slot));
           if (slot.workspace !== workspace || snapshot(workspace) !== expected) throw new RecoveryError('App state changed during investigation. Run a fresh investigation.');
-          const p = prepare(workspace);
-          workspace.investigation = finding;
-          for (const op of p.operations) op.reason = finding.decisions.find(d => d.recordId === op.recordId)!.reason;
-          event(workspace, 'AI recommendation validated', finding.summary, 'success');
-        } else { await prepareCurrent(workspace, adapterFor(slot)); }
+          acceptInvestigation(workspace, finding);
+        } else {
+          try { await prepareCurrent(workspace, adapterFor(slot)); }
+          catch (error) {
+            if (!(error instanceof RecoveryError) || error.status !== 422) throw error;
+            acceptInvestigation(workspace, { provider: 'scenario', model: 'Scenario rules', outcome: 'escalated', summary: error.message, decisions: [], toolCalls: 0, completedAt: new Date().toISOString() });
+          }
+        }
+        break;
+      }
+      case 'scenario': {
+        if (slot.workspace.mode !== 'local' || slot.workspace.plans.length) throw new RecoveryError('Reset the local scenario before choosing a different case.');
+        if (!evidenceScenarios.some(s => s.id === req.body.scenario)) throw new RecoveryError('Unknown evidence scenario.', 422);
+        slot.workspace = evidenceScenario(req.body.scenario as EvidenceScenario);
         break;
       }
       case 'human-edit': humanEdit(slot.workspace); break;

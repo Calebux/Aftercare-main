@@ -9,7 +9,8 @@
     "start": "NODE_ENV=production tsx server/index.ts",
     "test": "tsx --test tests/*.test.ts",
     "test:ui": "playwright test",
-    "eval": "tsx eval/run.ts"
+    "eval": "tsx eval/run.ts",
+    "eval:agent": "tsx eval/run-investigations.ts"
   },
   "dependencies": {
     "express": "^5.1.0",

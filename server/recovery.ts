@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { AgentRun, AppName, AuditEvent, Fields, RecordState, RecordedAction, RepairOperation, RepairPlan, Workspace } from '../shared/types.js';
+import type { AgentRun, AppName, AuditEvent, Fields, RecordState, RecordedAction, RepairOperation, RepairPlan, RepairDecision, Investigation, Workspace } from '../shared/types.js';
 
-export class RecoveryError extends Error {
-  constructor(message: string, public status = 409) { super(message); }
-}
+import { RecoveryError } from './errors.js';
+import { ruleDecisions, validateDecisions } from './policy.js';
+export { RecoveryError } from './errors.js';
 
 /**
  * The repair engine reads and writes app state only through this interface, so the
@@ -62,7 +62,7 @@ export function seedWorkspace(): Workspace {
   };
 }
 export function snapshot(w: Workspace) {
-  return createHash('sha256').update(JSON.stringify(w.records)).digest('hex');
+  return createHash('sha256').update(JSON.stringify({ records: w.records, sourceActions: w.sourceActions, run: w.run })).digest('hex');
 }
 export function currentPlan(w: Workspace): RepairPlan | undefined { return w.plans.at(-1); }
 const executions = new WeakSet<Workspace>();
@@ -73,11 +73,11 @@ export async function refreshRecords(w: Workspace, adapter: ProviderAdapter = lo
   if (adapter.mode === 'local') return;
   const fields = { GitHub: 'state', Linear: 'assignee', Slack: 'correction' } as const;
   const captured = snapshot(w);
-  const values = await Promise.all(w.records.map(r => adapter.read(r, fields[r.app])));
+  const observations = w.records.flatMap(r => [fields[r.app], ...(r.app === 'GitHub' && r.fields.body !== undefined ? ['body', 'canonicalBody'] : [])].map(field => ({ r, field })));
+  const values = await Promise.all(observations.map(({ r, field }) => adapter.read(r, field)));
   if (snapshot(w) !== captured) throw new RecoveryError('App state changed while refreshing. Try again.');
   let changed = false;
-  w.records.forEach((r, i) => {
-    const field = fields[r.app];
+  observations.forEach(({ r, field }, i) => {
     if ((r.fields[field] ?? '') === values[i]) return;
     r.fields[field] = values[i]; r.revision++; r.lastActor = 'human';
     changed = true;
@@ -89,7 +89,7 @@ export async function refreshRecords(w: Workspace, adapter: ProviderAdapter = lo
 
 export async function prepareCurrent(w: Workspace, adapter: ProviderAdapter = localAdapter) {
   // Reject an unfinished recovery before changing its reconciliation evidence.
-  prepare(structuredClone(w));
+  assertCanPrepare(w);
   await refreshRecords(w, adapter);
   return prepare(w);
 }
@@ -103,30 +103,40 @@ export async function approveCurrent(w: Workspace, planId: string, adapter: Prov
   return approve(w, planId);
 }
 
-export function prepare(w: Workspace): RepairPlan {
+export function assertCanPrepare(w: Workspace) {
   const previous = currentPlan(w);
-  if (previous && ['approved', 'executing', 'interrupted'].includes(previous.status)) {
-    throw new RecoveryError('Finish or reconcile the approved repair before preparing another.');
-  }
+  if (previous && ['approved', 'executing', 'interrupted'].includes(previous.status)) throw new RecoveryError('Finish or reconcile the approved repair before preparing another.');
   if (previous?.status === 'complete') throw new RecoveryError('This recovery is complete. Load a fresh scenario to start again.');
-  const [github, linear, slack] = w.records;
-  const evidence = (id: string) => {
-    const source = w.sourceActions.find(a => a.recordId === id);
-    if (!source) throw new RecoveryError('Source evidence is incomplete; the repair needs investigation.', 422);
-    return source;
-  };
-  const ownerSource = evidence(linear.id);
-  const canonical = evidence(github.id).before.canonicalIssue;
-  if (!canonical || canonical !== github.fields.canonicalIssue || !ownerSource.before.assignee) {
-    throw new RecoveryError('Source evidence is incomplete or conflicts with the current records.', 422);
-  }
+}
+
+/** Compile only validated model decisions into the executor's fixed field/value vocabulary. */
+export function prepare(w: Workspace, decisions?: RepairDecision[]): RepairPlan {
+  assertCanPrepare(w);
+  const selected = decisions ?? ruleDecisions(w);
+  validateDecisions(w, selected);
+  const github = w.records.find(r => r.app === 'GitHub')!;
+  const linear = w.records.find(r => r.app === 'Linear')!;
+  const ownerSource = w.sourceActions.find(s => s.recordId === linear.id)!;
+  const canonical = github.fields.canonicalIssue;
   const duplicate = github.external?.issueNumber ? `#${github.external.issueNumber}` : github.label;
-  const held = linear.lastActor === 'human' || linear.fields.assignee !== ownerSource.after.assignee;
-  const spec: Array<Omit<RepairOperation, 'id' | 'expectedRevision' | 'observed'>> = [
-    { recordId: github.id, app: 'GitHub', title: 'Close the duplicate issue', field: 'state', proposed: 'closed', reason: `Issue ${canonical} remains the canonical onboarding task. Closing ${duplicate} preserves its history.`, status: 'proposed', evidenceId: evidence(github.id).id },
-    { recordId: linear.id, app: 'Linear', title: held ? 'Preserve the human assignment' : 'Restore the original owner', field: 'assignee', proposed: held ? linear.fields.assignee : ownerSource.before.assignee, reason: held ? 'This assignment changed after the agent acted. Keep the human decision; no write is proposed.' : `The action journal identifies ${ownerSource.before.assignee} as the owner before the agent changed the assignment.`, status: held ? 'held' : 'proposed', evidenceId: ownerSource.id },
-    { recordId: slack.id, app: 'Slack', title: 'Append a correction to the thread', field: 'correction', proposed: `Correction: onboarding is still pending verification. Track GitHub ${canonical}; the duplicate ${duplicate} is closed. Handoff owner: ${held ? linear.fields.assignee : ownerSource.before.assignee}.`, reason: 'Preserve the original message and append the corrected status after the issue and assignment are checked.', status: 'proposed', evidenceId: evidence(slack.id).id },
-  ];
+  const held = selected.find(d => d.recordId === linear.id)!.action === 'preserve_owner';
+  const keepIssue = selected.find(d => d.recordId === github.id)!.action === 'preserve_issue';
+  const owner = held ? linear.fields.assignee : ownerSource.before.assignee;
+  const correction = `Correction: onboarding is still pending verification. Track GitHub ${canonical}; ${keepIssue ? `issue ${duplicate} is preserved for separate review` : `the duplicate ${duplicate} is closed`}. Handoff owner: ${owner}.`;
+  const spec: Array<Omit<RepairOperation, 'id' | 'expectedRevision' | 'observed'>> = w.records.map(r => {
+    const d = selected.find(d => d.recordId === r.id)!;
+    const preserve = d.action.startsWith('preserve_');
+    const field = r.app === 'GitHub' ? 'state' : r.app === 'Linear' ? 'assignee' : 'correction';
+    const titles = { close_duplicate: 'Close the duplicate issue', preserve_issue: 'Preserve the issue for separate review', restore_owner: 'Restore the original owner', preserve_owner: 'Preserve the human assignment', append_correction: 'Append a correction to the thread', preserve_correction: 'Keep the existing correction' };
+    return { recordId: r.id, app: r.app, title: titles[d.action], field,
+      proposed: preserve ? r.fields[field] ?? '' : r.app === 'GitHub' ? 'closed' : r.app === 'Linear' ? owner : correction,
+      reason: d.reason, status: d.action === 'preserve_correction' ? 'unchanged' : preserve ? 'held' : 'proposed', evidenceId: d.evidenceId,
+      ...(r.app === 'GitHub' && r.fields.body !== undefined ? { guards: { body: r.fields.body, canonicalBody: r.fields.canonicalBody ?? '' } } : {}),
+    };
+  });
+  // Rules cannot judge the meaning of a different existing correction. A model can assess it.
+  const existing = w.records.find(r => r.app === 'Slack')!.fields.correction;
+  if (!decisions && existing && existing !== correction) throw new RecoveryError('An existing correction needs investigation before it can be preserved; no second reply will be posted.', 422);
   const plan: RepairPlan = {
     id: randomUUID(), version: w.plans.length + 1, createdAt: now(), status: 'review', snapshot: snapshot(w),
     operations: spec.map(op => {
@@ -136,8 +146,24 @@ export function prepare(w: Workspace): RepairPlan {
     }),
   };
   w.plans.push(plan);
+  if (!decisions) delete w.investigation;
   event(w, `Repair v${plan.version} prepared`, `${plan.operations.filter(o => o.status === 'proposed').length} proposed writes, each linked to recorded evidence.${held ? ' A later human assignment will be preserved.' : ''}`);
   return plan;
+}
+/** Escalation invalidates an old review and survives reloads; it never creates an executable plan. */
+export function acceptInvestigation(w: Workspace, finding: Investigation) {
+  assertCanPrepare(w);
+  if (finding.outcome === 'escalated') {
+    const p = currentPlan(w);
+    if (p) p.status = 'stale';
+    w.investigation = finding;
+    event(w, 'Human investigation required', finding.summary, 'warning');
+    return;
+  }
+  const p = prepare(w, finding.decisions);
+  w.investigation = finding;
+  event(w, 'AI recommendation validated', finding.summary, 'success');
+  return p;
 }
 export function humanEdit(w: Workspace) {
   if (w.mode !== 'local') throw new RecoveryError(`Make the assignment change in ${w.mode === 'live' ? 'Linear' : 'the Linear twin'}, then review an updated plan.`);
@@ -151,6 +177,7 @@ export function humanEdit(w: Workspace) {
 export function approve(w: Workspace, planId: string) {
   const p = currentPlan(w);
   if (!p || p.id !== planId) throw new RecoveryError('This is not the latest repair plan. Review the latest version.');
+  if (w.investigation?.outcome === 'escalated') throw new RecoveryError('Human investigation is required before a repair can be approved.');
   if (p.status === 'complete' || p.status === 'approved') return p;
   if (p.status !== 'review' || p.snapshot !== snapshot(w)) {
     p.status = 'stale';
@@ -203,8 +230,10 @@ export async function execute(w: Workspace, planId: string, persist: () => void,
     const check = async (op: RepairOperation) => {
       const r = w.records.find(r => r.id === op.recordId)!;
       const verified = op.status === 'verified';
+      let guardsMatch = true;
+      for (const [field, expected] of Object.entries(op.guards ?? {})) if (await adapter.read(r, field) !== expected) guardsMatch = false;
       const current = await adapter.read(r, op.field);
-      if (r.revision !== op.expectedRevision + (verified ? 1 : 0) || current !== (verified ? op.proposed : op.observed)) {
+      if (!guardsMatch || r.revision !== op.expectedRevision + (verified ? 1 : 0) || current !== (verified ? op.proposed : op.observed)) {
         p.status = 'stale';
         event(w, 'Execution stopped', `${r.label} changed since review. No remaining operations were applied.`, 'warning');
         persist();
@@ -243,7 +272,7 @@ export async function execute(w: Workspace, planId: string, persist: () => void,
       throw new RecoveryError('Some operations remain unconfirmed. Reconcile before continuing.');
     }
     p.status = 'complete';
-    event(w, 'Recovery verified', `${p.operations.filter(o => o.status === 'verified').length} corrections verified. ${p.operations.filter(o => o.status === 'held').length} human decisions preserved.`, 'success');
+    event(w, 'Recovery verified', `${p.operations.filter(o => o.status === 'verified').length} corrections verified. ${p.operations.filter(o => o.status === 'held').length} records preserved without a write.`, 'success');
     persist(); return p;
   } catch (error) {
     if (p.status === 'executing' || p.operations.some(o => o.status === 'running' || o.status === 'uncertain')) {

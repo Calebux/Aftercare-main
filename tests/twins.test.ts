@@ -287,6 +287,7 @@ test('twin correction and evidence use the provisioned issue numbers and origina
   w.records[0].fields.canonicalIssue = '#1';
   w.sourceActions[0].before.canonicalIssue = '#1'; w.sourceActions[0].after.canonicalIssue = '#1';
   w.sourceActions[1].before.assignee = 'Original twin owner';
+  w.run!.actions[0].after.assignee = 'Original twin owner';
   const p = prepare(w);
   assert.match(p.operations[0].reason, /Issue #1.*Closing #2/);
   assert.match(p.operations[1].reason, /Original twin owner/);

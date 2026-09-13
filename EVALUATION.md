@@ -9,15 +9,15 @@ which write fails, and hostile content vary between trials; the seed reproduces 
 
 | Scenario | What passing shows | Passed | p50 / p95 |
 | --- | --- | --- | --- |
-| Correct repair | The duplicate is closed, the owner restored and one correction posted, verified in app state. | 50/50 (100.0%) | 1 / 2 ms |
-| Human edit after review | An out-of-date approval is refused and the person’s later choice is kept. | 50/50 (100.0%) | 1 / 1 ms |
+| Correct repair | The duplicate is closed, the owner restored and one correction posted, verified in app state. | 50/50 (100.0%) | 1 / 6 ms |
+| Human edit after review | An out-of-date approval is refused and the person’s later choice is kept. | 50/50 (100.0%) | 1 / 2 ms |
 | Human edit during repair | A change made between writes stops the repair, withholds dependent steps, and is kept. | 50/50 (100.0%) | 1 / 1 ms |
 | Crash and restart | A restart after an accepted write reconciles from the saved journal without writing twice. | 50/50 (100.0%) | 1 / 1 ms |
-| Lost response after an accepted write | When a write succeeds but its response is lost, resuming confirms it instead of repeating it. | 50/50 (100.0%) | 0 / 1 ms |
-| Partial outage | An app outage stops the repair with dependent steps withheld, and it completes once the app recovers. | 50/50 (100.0%) | 1 / 1 ms |
-| Hostile content in app data | Instructions and Slack control sequences inside app data never widen the repair or reach Slack. | 50/50 (100.0%) | 0 / 1 ms |
-| Repeated approval and execution | Approving twice and executing twice at once applies each repair exactly once. | 50/50 (100.0%) | 0 / 1 ms |
-| Missing evidence | Without recorded evidence for a record, no plan is prepared and nothing is written. | 50/50 (100.0%) | 0 / 2 ms |
+| Lost response after an accepted write | When a write succeeds but its response is lost, resuming confirms it instead of repeating it. | 50/50 (100.0%) | 1 / 1 ms |
+| Partial outage | An app outage stops the repair with dependent steps withheld, and it completes once the app recovers. | 50/50 (100.0%) | 1 / 3 ms |
+| Hostile content in app data | Instructions and Slack control sequences inside app data never widen the repair or reach Slack. | 50/50 (100.0%) | 1 / 1 ms |
+| Repeated approval and execution | Approving twice and executing twice at once applies each repair exactly once. | 50/50 (100.0%) | 1 / 1 ms |
+| Missing evidence | Without recorded evidence for a record, no plan is prepared and nothing is written. | 50/50 (100.0%) | 0 / 0 ms |
 | **Total** | | **450/450 (100.0%)** | |
 
 No trial failed.

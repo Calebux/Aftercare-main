@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 test('operator rejects stale plan, preserves human work, and reconciles interruption', async ({ page, request }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   await request.post('/api/reset', { data: {} });
@@ -8,7 +9,7 @@ test('operator rejects stale plan, preserves human work, and reconciles interrup
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'Evaluation', exact: true }).first().click();
   await expect(page.getByRole('dialog', { name: 'How reliably Aftercare repairs' })).toBeVisible();
-  await expect(page.getByText(/trials passed/)).toBeVisible();
+  await expect(page.getByText(/^\d+ of \d+ trials passed/)).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: /Prepare repair plan/ }).click();
@@ -28,9 +29,44 @@ test('operator rejects stale plan, preserves human work, and reconciles interrup
   expect(state.records[0].revision).toBe(2);
   expect(state.records[1].fields.assignee).toBe('Morgan Lee');
   expect(state.records[2].fields.correction).toContain('Morgan Lee');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export recovery receipt' }).click();
+  const receipt = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
+  expect(receipt.sourceActions).toHaveLength(3);
+  expect(receipt.run.mode).toBe('simulated');
+  expect(receipt.plan.status).toBe('complete');
   expect(errors).toEqual([]);
   await page.screenshot({ path: 'test-results/desktop-recovery.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/mobile-recovery.png', fullPage: true });
+});
+
+test('sample evidence changes the available repair and escalation survives reload', async ({ page, request }) => {
+  await request.post('/api/reset', { data: {} });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'See it on sample data' }).click();
+  await page.getByLabel('Explore a different incident').selectOption('distinct-work');
+  await expect(page.getByLabel('Explore a different incident')).toBeEnabled();
+  await page.getByRole('button', { name: 'Prepare repair plan' }).click();
+  await expect(page.getByText('Preserve the issue for separate review')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Approve 2 changes' })).toBeVisible();
+  await page.getByRole('button', { name: 'Evidence', exact: true }).first().click();
+  await expect(page.getByText('Simulated scenario evidence', { exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await request.post('/api/reset', { data: {} });
+  await page.reload();
+  await page.getByLabel('Explore a different incident').selectOption('owner-conflict');
+  await expect(page.getByLabel('Explore a different incident')).toBeEnabled();
+  await page.getByRole('button', { name: 'Prepare repair plan' }).click();
+  await expect(page.getByRole('status')).toContainText('Ownership evidence conflicts');
+  await page.reload();
+  await expect(page.getByRole('status')).toContainText('Human investigation required');
+  await expect(page.getByRole('button', { name: /^Approve \d/ })).toHaveCount(0);
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export investigation receipt' }).click();
+  const receipt = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
+  expect(receipt.investigation.outcome).toBe('escalated');
+  expect(receipt.plan).toBeUndefined();
+  await page.screenshot({ path: 'test-results/escalation.png', fullPage: true });
 });

@@ -63,6 +63,11 @@ export const github = {
     const issue = await api(e, `/repos/${ref.owner}/${ref.repo}/issues/${ref.issueNumber}`, { headers: github.headers(e) }, 'reading the issue');
     return String(need(e, issue?.state, 'issue state'));
   },
+  async readBody(e: Endpoint, ref: ExternalRef): Promise<string> {
+    const issue = await api(e, `/repos/${ref.owner}/${ref.repo}/issues/${ref.issueNumber}`, { headers: github.headers(e) }, 'reading issue content');
+    if (issue?.body === null) return '';
+    return String(need(e, issue?.body, 'issue body'));
+  },
   async writeState(e: Endpoint, ref: ExternalRef, value: string) {
     await api(e, `/repos/${ref.owner}/${ref.repo}/issues/${ref.issueNumber}`, { method: 'PATCH', headers: github.headers(e), body: JSON.stringify({ state: value }) }, 'updating the issue');
   },
@@ -163,6 +168,12 @@ export function providerAdapter(mode: 'twin' | 'live', locate: Locate): Provider
     async read(record, field) {
       const { ref, endpoint } = locate(record);
       if (ref.provider === 'github' && field === 'state') return github.readState(endpoint, ref);
+      if (ref.provider === 'github' && field === 'body') return github.readBody(endpoint, ref);
+      if (ref.provider === 'github' && field === 'canonicalBody') {
+        const canonical = record.fields.canonicalIssue?.match(/^#([1-9][0-9]*)$/);
+        if (!canonical) throw new RecoveryError('The canonical issue reference is invalid.', 422);
+        return github.readBody(endpoint, { ...ref, issueNumber: Number(canonical[1]) });
+      }
       if (ref.provider === 'linear' && field === 'assignee') return linear.readAssignee(endpoint, ref);
       if (ref.provider === 'slack' && field === 'correction') return slack.readCorrection(endpoint, ref);
       return record.fields[field] ?? '';

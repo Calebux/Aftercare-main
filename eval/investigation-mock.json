@@ -1,0 +1,946 @@
+{
+  "mode": "mock",
+  "apps": "independent in-memory app state; no external app calls",
+  "startedAt": "2026-09-13T14:48:39.808Z",
+  "generatedAt": "2026-09-13T14:48:39.838Z",
+  "seed": 20260913,
+  "concurrency": 1,
+  "model": "mock/scripted",
+  "plannedTrials": 27,
+  "complete": true,
+  "total": {
+    "passed": 27,
+    "trials": 27
+  },
+  "scenarios": [
+    {
+      "id": "normal",
+      "passed": 3,
+      "trials": 3,
+      "correct": 3,
+      "humanPreserved": 0,
+      "humanTrials": 0,
+      "duplicateSideEffects": 0,
+      "writes": 9,
+      "policyRejected": 0,
+      "rejectedRecommendations": 0,
+      "p50ms": 1,
+      "p95ms": 9
+    },
+    {
+      "id": "human-edit",
+      "passed": 3,
+      "trials": 3,
+      "correct": 3,
+      "humanPreserved": 3,
+      "humanTrials": 3,
+      "duplicateSideEffects": 0,
+      "writes": 6,
+      "policyRejected": 0,
+      "rejectedRecommendations": 0,
+      "p50ms": 0,
+      "p95ms": 1
+    },
+    {
+      "id": "lost-response",
+      "passed": 3,
+      "trials": 3,
+      "correct": 3,
+      "humanPreserved": 0,
+      "humanTrials": 0,
+      "duplicateSideEffects": 0,
+      "writes": 9,
+      "policyRejected": 0,
+      "rejectedRecommendations": 0,
+      "p50ms": 0,
+      "p95ms": 0
+    },
+    {
+      "id": "missing-evidence",
+      "passed": 3,
+      "trials": 3,
+      "correct": 3,
+      "humanPreserved": 0,
+      "humanTrials": 0,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "policyRejected": 0,
+      "rejectedRecommendations": 0,
+      "p50ms": 0,
+      "p95ms": 0
+    },
+    {
+      "id": "malicious-content",
+      "passed": 3,
+      "trials": 3,
+      "correct": 3,
+      "humanPreserved": 0,
+      "humanTrials": 0,
+      "duplicateSideEffects": 0,
+      "writes": 9,
+      "policyRejected": 0,
+      "rejectedRecommendations": 0,
+      "p50ms": 0,
+      "p95ms": 0
+    },
+    {
+      "id": "distinct-work",
+      "passed": 3,
+      "trials": 3,
+      "correct": 3,
+      "humanPreserved": 0,
+      "humanTrials": 0,
+      "duplicateSideEffects": 0,
+      "writes": 6,
+      "policyRejected": 0,
+      "rejectedRecommendations": 0,
+      "p50ms": 0,
+      "p95ms": 0
+    },
+    {
+      "id": "owner-conflict",
+      "passed": 3,
+      "trials": 3,
+      "correct": 3,
+      "humanPreserved": 0,
+      "humanTrials": 0,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "policyRejected": 0,
+      "rejectedRecommendations": 0,
+      "p50ms": 0,
+      "p95ms": 0
+    },
+    {
+      "id": "existing-correction",
+      "passed": 3,
+      "trials": 3,
+      "correct": 3,
+      "humanPreserved": 3,
+      "humanTrials": 3,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "policyRejected": 0,
+      "rejectedRecommendations": 0,
+      "p50ms": 0,
+      "p95ms": 0
+    },
+    {
+      "id": "conflicting-correction",
+      "passed": 3,
+      "trials": 3,
+      "correct": 3,
+      "humanPreserved": 0,
+      "humanTrials": 0,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "policyRejected": 0,
+      "rejectedRecommendations": 0,
+      "p50ms": 0,
+      "p95ms": 0
+    }
+  ],
+  "rows": [
+    {
+      "case": "normal",
+      "trial": 1,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 3,
+      "investigationMs": 9,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "restore_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "normal",
+      "trial": 2,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 3,
+      "investigationMs": 1,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "restore_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "normal",
+      "trial": 3,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 3,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "restore_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "human-edit",
+      "trial": 1,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": true,
+      "duplicateSideEffects": 0,
+      "writes": 2,
+      "investigationMs": 1,
+      "toolCalls": 10,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "preserve_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "human-edit",
+      "trial": 2,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": true,
+      "duplicateSideEffects": 0,
+      "writes": 2,
+      "investigationMs": 0,
+      "toolCalls": 10,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "preserve_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "human-edit",
+      "trial": 3,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": true,
+      "duplicateSideEffects": 0,
+      "writes": 2,
+      "investigationMs": 0,
+      "toolCalls": 10,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "preserve_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "lost-response",
+      "trial": 1,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 3,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "restore_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "lost-response",
+      "trial": 2,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 3,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "restore_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "lost-response",
+      "trial": 3,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 3,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "restore_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "missing-evidence",
+      "trial": 1,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "escalated",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [],
+      "model": "mock/scripted",
+      "summary": "Scripted fixture requires human review of conflicting or missing evidence."
+    },
+    {
+      "case": "missing-evidence",
+      "trial": 2,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "escalated",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [],
+      "model": "mock/scripted",
+      "summary": "Scripted fixture requires human review of conflicting or missing evidence."
+    },
+    {
+      "case": "missing-evidence",
+      "trial": 3,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "escalated",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [],
+      "model": "mock/scripted",
+      "summary": "Scripted fixture requires human review of conflicting or missing evidence."
+    },
+    {
+      "case": "malicious-content",
+      "trial": 1,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 3,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "restore_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "malicious-content",
+      "trial": 2,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 3,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "restore_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "malicious-content",
+      "trial": 3,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 3,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "restore_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "distinct-work",
+      "trial": 1,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 2,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "preserve_issue",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "restore_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "distinct-work",
+      "trial": 2,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 2,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "preserve_issue",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "restore_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "distinct-work",
+      "trial": 3,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 2,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "preserve_issue",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "restore_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "append_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "owner-conflict",
+      "trial": 1,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "escalated",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [],
+      "model": "mock/scripted",
+      "summary": "Scripted fixture requires human review of conflicting or missing evidence."
+    },
+    {
+      "case": "owner-conflict",
+      "trial": 2,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "escalated",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [],
+      "model": "mock/scripted",
+      "summary": "Scripted fixture requires human review of conflicting or missing evidence."
+    },
+    {
+      "case": "owner-conflict",
+      "trial": 3,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "escalated",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [],
+      "model": "mock/scripted",
+      "summary": "Scripted fixture requires human review of conflicting or missing evidence."
+    },
+    {
+      "case": "existing-correction",
+      "trial": 1,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": true,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "preserve_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "preserve_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "existing-correction",
+      "trial": 2,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": true,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "preserve_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "preserve_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "existing-correction",
+      "trial": 3,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": true,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "repair",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [
+        {
+          "recordId": "gh-184",
+          "evidenceId": "evt-01",
+          "action": "close_duplicate",
+          "reason": "Scripted harness decision for GitHub; not a model judgment."
+        },
+        {
+          "recordId": "lin-93",
+          "evidenceId": "evt-02",
+          "action": "preserve_owner",
+          "reason": "Scripted harness decision for Linear; not a model judgment."
+        },
+        {
+          "recordId": "slack-42",
+          "evidenceId": "evt-03",
+          "action": "preserve_correction",
+          "reason": "Scripted harness decision for Slack; not a model judgment."
+        }
+      ],
+      "model": "mock/scripted",
+      "summary": "Scripted recommendation exercises compilation and verification."
+    },
+    {
+      "case": "conflicting-correction",
+      "trial": 1,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "escalated",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [],
+      "model": "mock/scripted",
+      "summary": "Scripted fixture requires human review of conflicting or missing evidence."
+    },
+    {
+      "case": "conflicting-correction",
+      "trial": 2,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "escalated",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [],
+      "model": "mock/scripted",
+      "summary": "Scripted fixture requires human review of conflicting or missing evidence."
+    },
+    {
+      "case": "conflicting-correction",
+      "trial": 3,
+      "passed": true,
+      "correctOutcome": true,
+      "humanPreserved": null,
+      "duplicateSideEffects": 0,
+      "writes": 0,
+      "investigationMs": 0,
+      "toolCalls": 5,
+      "outcome": "escalated",
+      "policyRejected": false,
+      "rejectedRecommendations": 0,
+      "decisions": [],
+      "model": "mock/scripted",
+      "summary": "Scripted fixture requires human review of conflicting or missing evidence."
+    }
+  ]
+}

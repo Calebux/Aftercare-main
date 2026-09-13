@@ -22,6 +22,7 @@ const UNRELATED_TS = '1690000000.000001';
 export function fakeApps(options: FakeOptions = {}) {
   const members = options.members ?? team.slice(0, 2);
   const issues = new Map<number, string>();
+  const issueBodies = new Map<number, string>();
   const assignees = new Map<string, string>();
   const deleted: string[] = [];
   const messages: Array<{ ts: string; text: string; thread_ts?: string }> = [];
@@ -45,11 +46,11 @@ export function fakeApps(options: FakeOptions = {}) {
       const match = url.pathname.match(/^\/repos\/demo-owner\/aftercare-demo(.*)$/);
       if (!match) return json({ message: 'Not Found' }, 404);
       if (match[1] === '') return json({ full_name: 'demo-owner/aftercare-demo' });
-      if (match[1] === '/issues' && method === 'POST') { issues.set(issues.size + 1, 'open'); return json({ number: issues.size, state: 'open' }, 201); }
+      if (match[1] === '/issues' && method === 'POST') { issues.set(issues.size + 1, 'open'); issueBodies.set(issues.size, body.body ?? ''); return json({ number: issues.size, state: 'open' }, 201); }
       const number = Number(match[1].match(/^\/issues\/(\d+)$/)?.[1]);
       if (!issues.has(number)) return json({ message: 'Not Found' }, 404);
       if (method === 'PATCH') issues.set(number, body.state);
-      return json({ number, state: issues.get(number) });
+      return json({ number, state: issues.get(number), body: issueBodies.get(number) ?? '' });
     }
     if (url.href === 'https://api.linear.app/graphql') {
       const { query, variables: v } = body;
@@ -84,5 +85,5 @@ export function fakeApps(options: FakeOptions = {}) {
   const writes = () => requests.filter(r => (r.url.hostname === 'api.github.com' && r.method !== 'GET') || r.url.pathname === '/api/chat.postMessage' || String(r.body?.query ?? '').startsWith('mutation'));
   /** The unrelated records, so a check can confirm a repair left them alone. */
   const unrelatedState = () => JSON.stringify({ issue: issues.get(1), assignee: assignees.get('lin-unrelated'), message: messages.find(m => m.ts === UNRELATED_TS) });
-  return { fetcher, requests, handled, writes, issues, assignees, messages, deleted, unrelatedState };
+  return { fetcher, requests, handled, writes, issues, issueBodies, assignees, messages, deleted, unrelatedState };
 }

@@ -3,7 +3,7 @@ import { ArrowRight, ExternalLink, ShieldCheck, Sparkles, Wrench, X } from 'luci
 
 const steps = [
   { icon: <Sparkles size={18} />, title: 'The agent runs', text: 'onboarding-agent works across GitHub, Linear and Slack. Aftercare records every change it makes.' },
-  { icon: <ShieldCheck size={18} />, title: 'Aftercare flags the mistakes', text: 'A duplicate issue, the wrong owner, a premature announcement: each is marked with the evidence behind it.' },
+  { icon: <ShieldCheck size={18} />, title: 'Aftercare flags suspicious changes', text: 'A duplicate issue, the wrong owner, a premature announcement: each is marked with the evidence behind it.' },
   { icon: <Wrench size={18} />, title: 'You approve, Aftercare repairs', text: 'Nothing changes until you approve. Each fix is checked again in the real app afterwards.' },
 ];
 export const dialog: React.CSSProperties = { width: 'min(780px, 100%)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', background: '#fafaf7', border: '1px solid #e4e1da', borderRadius: 12, padding: 'clamp(20px, 4vw, 34px)', boxShadow: '0 20px 80px #28203020' };
@@ -33,7 +33,7 @@ export function Welcome({ connectionsEnabled, onClose, onSample, onOwnApps }: { 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
         <div style={card}>
           <button autoFocus className="button primary full" onClick={onSample}>See it on sample data<ArrowRight size={14} /></button>
-          <p style={{ fontSize: 12, lineHeight: 1.6, color: '#747971', marginTop: 10 }}>Instant, with no accounts. Records are simulated and nothing leaves this page.</p>
+          <p style={{ fontSize: 12, lineHeight: 1.6, color: '#747971', marginTop: 10 }}>Instant, with no accounts. App records are simulated. If AI is enabled, it receives the sample evidence; repairs stay in the scenario.</p>
         </div>
         {connectionsEnabled && <div style={card}>
           <button className="button outline full" onClick={onOwnApps}>Use your own apps<ArrowRight size={14} /></button>

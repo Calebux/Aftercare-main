@@ -39,6 +39,8 @@ export interface RepairOperation {
   expectedRevision: number;
   status: OperationStatus;
   evidenceId: string;
+  /** Evidence fields that must still match before every write, including held records. */
+  guards?: Fields;
 }
 export interface RepairPlan {
   id: string;
@@ -86,6 +88,13 @@ export interface AgentRun {
   actions: RecordedAction[];
 }
 export interface AuditEvent { id: string; at: string; title: string; detail: string; kind: 'info' | 'warning' | 'success' }
+export type DecisionAction = 'close_duplicate' | 'preserve_issue' | 'restore_owner' | 'preserve_owner' | 'append_correction' | 'preserve_correction';
+export interface RepairDecision { recordId: string; action: DecisionAction; evidenceId: string; reason: string }
+export interface Investigation {
+  provider: 'openrouter' | 'scenario'; model: string; summary: string;
+  outcome: 'repair' | 'escalated'; decisions: RepairDecision[];
+  toolCalls: number; completedAt: string; rejectedRecommendations?: number;
+}
 export interface Workspace {
   schema: 1;
   mode: 'local' | 'twin' | 'live';
@@ -100,9 +109,5 @@ export interface Workspace {
   run?: AgentRun;
   plans: RepairPlan[];
   events: AuditEvent[];
-  investigation?: {
-    provider: 'openrouter'; model: string; summary: string;
-    decisions: Array<{ recordId: string; action: 'close_duplicate' | 'restore_owner' | 'preserve_owner' | 'append_correction'; evidenceId: string; reason: string }>;
-    toolCalls: number; completedAt: string;
-  };
+  investigation?: Investigation;
 }

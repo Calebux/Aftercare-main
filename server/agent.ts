@@ -12,6 +12,8 @@ export interface IncidentTargets {
 
 export const AGENT = 'onboarding-agent';
 const TITLE = 'Provision Acme workspace';
+const CANONICAL_BODY = 'Onboarding task for Acme.';
+const RETRY_BODY = 'Onboarding task for Acme (retried after a timeout).';
 
 /**
  * Marks the recorded actions that need repair using only the recording and the task:
@@ -81,12 +83,12 @@ export async function runOnboardingAgent(w: Workspace, t: IncidentTargets, optio
     await capture('intake', 'Linear', 'linear.create_issue', `Created ${handoff.identifier} “Acme onboarding handoff” for ${owner.name}.`, {}, { issue: handoff.identifier, assignee: owner.name });
 
     // The REST API cannot delete issues, so a failed run closes them.
-    const canonical = await github.createIssue(t.github.endpoint, repo, TITLE, 'Onboarding task for Acme.');
+    const canonical = await github.createIssue(t.github.endpoint, repo, TITLE, CANONICAL_BODY);
     undo.push(closeIssue(canonical));
-    await capture(AGENT, 'GitHub', 'github.create_issue', `Created issue #${canonical} “${TITLE}”. The response was lost, so the agent was told the call timed out.`, {}, { issue: `#${canonical}`, title: TITLE, state: 'open' }, 'reported_timeout');
-    const duplicate = await github.createIssue(t.github.endpoint, repo, TITLE, 'Onboarding task for Acme (retried after a timeout).');
+    await capture(AGENT, 'GitHub', 'github.create_issue', `Created issue #${canonical} “${TITLE}”. The response was lost, so the agent was told the call timed out.`, {}, { issue: `#${canonical}`, title: TITLE, body: CANONICAL_BODY, state: 'open' }, 'reported_timeout');
+    const duplicate = await github.createIssue(t.github.endpoint, repo, TITLE, RETRY_BODY);
     undo.push(closeIssue(duplicate));
-    await capture(AGENT, 'GitHub', 'github.create_issue', `Retried and created issue #${duplicate} “${TITLE}”.`, {}, { issue: `#${duplicate}`, title: TITLE, state: 'open' });
+    await capture(AGENT, 'GitHub', 'github.create_issue', `Retried and created issue #${duplicate} “${TITLE}”.`, {}, { issue: `#${duplicate}`, title: TITLE, body: RETRY_BODY, state: 'open' });
 
     // In a one-person workspace the stale roster has no entry, so the owner is removed.
     const wrongOwner = staleEntry?.name ?? '';
@@ -116,7 +118,7 @@ export async function runOnboardingAgent(w: Workspace, t: IncidentTargets, optio
 
   gh.external = { provider: 'github', ...repo, issueNumber: made.duplicate };
   gh.label = `#${made.duplicate}`;
-  gh.fields = { ...gh.fields, state: 'open', canonicalIssue: `#${made.canonical}` };
+  gh.fields = { ...gh.fields, state: 'open', canonicalIssue: `#${made.canonical}`, body: RETRY_BODY, canonicalBody: CANONICAL_BODY };
   lin.external = made.linearRef;
   lin.label = made.handoff.identifier;
   lin.fields = { ...lin.fields, assignee: made.wrongOwner };

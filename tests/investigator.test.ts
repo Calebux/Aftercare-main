@@ -35,14 +35,49 @@ test('tool loop reads evidence and records before producing a validated finding'
   const result = await investigate(seedWorkspace(), { key: 'test-not-a-key', fetcher });
   assert.equal(calls, 2); assert.equal(result.toolCalls, 5); assert.equal(result.model, 'test/model');
 });
-test('submitting alongside unread tool results does not count as observed evidence', async () => {
-  const batch = [{ name: 'get_run_actions', args: {} }, ...['gh-184', 'lin-93', 'slack-42'].map(recordId => ({ name: 'read_app_record', args: { recordId } })), { name: 'submit_repair', args: finding() }];
-  const fetcher: typeof fetch = async () => new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', tool_calls: batch.map((b,i) => ({ id: String(i), type: 'function', function: { name: b.name, arguments: JSON.stringify(b.args) } })) } }] }));
-  await assert.rejects(investigate(seedWorkspace(), { key: 'test-not-a-key', fetcher }), /must read/);
+test('submitting alongside unread results is rejected before a later observed recommendation can succeed', async () => {
+  let requests = 0;
+  const first = [{ name: 'get_run_actions', args: {} }, ...['gh-184', 'lin-93', 'slack-42'].map(recordId => ({ name: 'read_app_record', args: { recordId } })), { name: 'submit_repair', args: finding() }];
+  const fetcher: typeof fetch = async (_url, init) => {
+    const request = JSON.parse(String(init?.body));
+    if (requests) assert.match(request.messages.at(-1).content, /must read/);
+    const batch = requests++ === 0 ? first : [{ name: 'submit_repair', args: finding() }];
+    return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', tool_calls: batch.map((b,i) => ({ id: `${requests}-${i}`, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.args) } })) } }] }));
+  };
+  const result = await investigate(seedWorkspace(), { key: 'test-not-a-key', fetcher });
+  assert.equal(requests, 2);
+  assert.equal(result.rejectedRecommendations, 1);
+  assert.equal(result.outcome, 'repair');
 });
+
 test('provider errors do not expose response bodies or accept a partial finding', async () => {
   const fetcher: typeof fetch = async () => new Response('sensitive provider response', { status: 401 });
   await assert.rejects(investigate(seedWorkspace(), { key: 'test-not-a-key', fetcher }), e => {
     assert.match(String(e), /HTTP 401/); assert.doesNotMatch(String(e), /sensitive provider/); return true;
   });
+});
+
+test('rejected missing-evidence repair can escalate within the bounded tool loop without a plan', async () => {
+  const w = seedWorkspace(); w.sourceActions.splice(0, 1);
+  const batches = [
+    [{ name: 'get_run_actions', args: {} }, ...w.records.map(r => ({ name: 'read_app_record', args: { recordId: r.id } }))],
+    [{ name: 'submit_repair', args: finding() }],
+    [{ name: 'escalate', args: { reason: 'The journal has no source action for the GitHub issue; human investigation is required.' } }],
+  ];
+  let n = 0;
+  const fetcher: typeof fetch = async (_url, init) => {
+    if (n === 2) assert.match(JSON.parse(String(init?.body)).messages.at(-1).content, /If none exists, call escalate/);
+    return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', tool_calls: batches[n++].map((b, i) => ({ id: `${n}-${i}`, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.args) } })) } }] }));
+  };
+  const result = await investigate(w, { key: 'test-not-a-key', fetcher });
+  assert.equal(result.outcome, 'escalated');
+  assert.equal(result.rejectedRecommendations, 1);
+  assert.equal(w.plans.length, 0);
+});
+
+test('a model repeatedly ignoring structured tools stops at the existing round budget', async () => {
+  let calls = 0;
+  const fetcher: typeof fetch = async () => { calls++; return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'I fixed it.' } }] })); };
+  await assert.rejects(investigate(seedWorkspace(), { key: 'test-not-a-key', fetcher }), /round budget/);
+  assert.equal(calls, 8);
 });
