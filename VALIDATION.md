@@ -8,7 +8,7 @@ The current source is checked on September 13, 2026; the tables below distinguis
 
 | Check | Result |
 | --- | --- |
-| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 70/70 passed |
+| Engine, investigator, twin, live, connection, and HTTP integration tests (local and hosted) | 79/79 passed |
 | Browser recovery workflow with desktop and mobile layout checks | 2/2 passed |
 | Evaluation harness: 9 scenarios × 50 seeded trials against simulated apps | 450/450 passed |
 | TypeScript check and production frontend build | Passed |
@@ -51,6 +51,20 @@ The body check and a model preservation decision were later verified against rea
 accounts; see the live run with a content change during review below. Sample evidence
 cases and record-link resolution have automated coverage only. The real-model evaluation
 does not upgrade any live-account claim.
+
+## Recorder API and MCP gateway: September 13, 2026
+
+Built during the event, starting at 9:22 AM Pacific. Offline tests in `tests/agents.test.ts`
+cover a full MCP run that becomes a verified repair, Recorder API report checks (a false issue
+title refuses the whole run), an out-of-team Linear issue refused before any write, tool calls
+before `start_run`, the 20-action limit, input validation, a run that is not repairable, rate
+limiting, JSON-RPC handling, and key hashing, replacement, and revocation. HTTP checks cover
+missing and invalid keys, other origins, and `GET /mcp`.
+
+A smoke test over real HTTP issued a key, completed MCP `initialize` and a notification (HTTP
+202), listed the seven tools through the example agent, stopped at `start_run` because no apps
+were connected, never returned the key from the status endpoint, and refused the key after
+revocation. Neither feature has run against real accounts yet.
 
 ## Frozen investigator holdout: September 13, 2026
 

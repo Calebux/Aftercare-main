@@ -185,6 +185,43 @@ journal, recorded run, investigation, plan, observed app state, and activity.
 See [DEMO.md](DEMO.md) for the two-minute demonstration and [SYSTEM.md](SYSTEM.md)
 for the architecture and reliability brief.
 
+## Bring your own agent
+
+Record an outside agent's work in two ways, both with a workspace **agent key** from the
+**Bring your own agent** panel. The key is shown once, kept only as a hash in server memory,
+accepted only in the `Authorization: Bearer` header, and revocable; a restart invalidates it.
+
+**MCP gateway** (`POST /mcp`, streamable HTTP with JSON responses). The agent calls
+`start_run`, then `github_create_issue`, `linear_create_issue`, `linear_update_assignee`,
+and `slack_post_message`, then `finish_run`. Aftercare makes each call with the workspace's
+own connections, so the agent never holds an app token.
+
+```sh
+claude mcp add --transport http aftercare http://127.0.0.1:4310/mcp --header "Authorization: Bearer aft_..."
+AFTERCARE_AGENT_KEY=aft_... npm run agent:example -- "Owner name"   # a deliberately faulty example agent
+```
+
+**Recorder API.** The agent makes its own calls and reports them:
+
+- `POST /api/agent/runs` with `{ agent, task, owner }`
+- `POST /api/agent/runs/current/actions` with one of `github.create_issue { issue, title, body, outcome }`,
+  `linear.create_issue { issue, title, assignee }`, `linear.update_assignee { issue, before, after }`,
+  or `slack.post_message { ts, text }`
+- `POST /api/agent/runs/current/finish`, or `/discard`
+
+When a run finishes, Aftercare reads every reported record back from the apps and refuses the
+whole run if anything differs. A run matching the supported onboarding incident (a repeated
+create, a wrong owner, and a premature announcement) opens in the normal investigation,
+approval, repair, and receipt flow, and sends the Slack alert. Other runs are recorded and
+assessed but are not yet repairable.
+
+Safeguards: actions are limited to the connected repository, team, and channel, and Linear
+issues are checked against the team; inputs are bounded and validated, and control characters
+are refused; summaries are written by Aftercare rather than the agent; Slack text is escaped;
+a run holds at most 20 actions; a workspace allows 120 agent requests a minute; and agent
+routes ignore cookies and refuse other origins. Only these four actions are supported; the
+gateway offers no arbitrary API calls.
+
 ## Evaluate
 
 ```sh

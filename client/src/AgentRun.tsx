@@ -12,7 +12,7 @@ export function AgentRunView({ run, icon, live = false }: { run?: AgentRun; icon
   return <div className="activity-list" aria-live={live ? 'polite' : undefined}>
     <div className="section-intro">
       <h3>{live ? `Watching ${run.agent}: ${changes} change${changes === 1 ? '' : 's'} so far, ${needsRepair} flagged` : `${run.agent} made ${changes} changes. ${needsRepair} flagged for review.`}</h3>
-      <p>{run.mode === 'recorded' ? 'Captured by Aftercare’s recorder from real tool calls, with the values before and after each change.' : 'A simulated recording for the local scenario.'} Task: {run.task}</p>
+      <p>{run.source === 'mcp' ? 'Captured by Aftercare’s MCP gateway, which made each call and recorded the values before and after.' : run.source === 'recorder' ? 'Reported by the agent through the Recorder API and checked against the apps.' : run.mode === 'recorded' ? 'Captured by Aftercare’s recorder from real tool calls, with the values before and after each change.' : 'A simulated recording for the local scenario.'} Task: {run.task}</p>
     </div>
     {run.actions.map(action => <div className={`activity-event ${action.assessment === 'needs_repair' ? 'warning' : action.assessment === 'expected' ? 'success' : ''}`} key={action.id}>
       <span className="activity-dot">{action.assessment === 'needs_repair' ? <TriangleAlert size={12} /> : action.assessment === 'expected' ? <Check size={13} /> : <Clock3 size={12} />}</span>

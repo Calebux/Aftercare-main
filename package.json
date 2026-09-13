@@ -12,7 +12,8 @@
     "eval": "tsx eval/run.ts",
     "eval:agent": "tsx eval/run-investigations.ts",
     "eval:holdout": "tsx eval/run-holdout.ts",
-    "demo:record": "tsx scripts/record-demo.ts"
+    "demo:record": "tsx scripts/record-demo.ts",
+    "agent:example": "tsx examples/mcp-agent.ts"
   },
   "dependencies": {
     "express": "^5.1.0",
