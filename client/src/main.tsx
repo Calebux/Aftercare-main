@@ -5,6 +5,7 @@ import type { AgentRun, AppName, RepairOperation, Workspace } from '../../shared
 import { ConnectApps } from './ConnectApps';
 import { AgentRunView } from './AgentRun';
 import { Welcome } from './Welcome';
+import { EvaluationView } from './Evaluation';
 
 const WELCOME_SEEN = 'aftercare.welcome.seen';
 import './styles.css';
@@ -21,6 +22,7 @@ function App() {
   const [interrupt, setInterrupt] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [liveRun, setLiveRun] = useState<AgentRun>();
+  const [showEvaluation, setShowEvaluation] = useState(false);
   // While the agent runs, poll the in-memory recording so each action appears as it happens.
   useEffect(() => {
     if (busy !== 'connect-live') return;
@@ -39,9 +41,9 @@ function App() {
     const timer = setInterval(() => { fetch('/api/workspace').then(r => r.json()).then(setW).catch(() => {}); }, 1500);
     return () => clearInterval(timer);
   }, [busy]);
-  useEffect(() => { const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') { setEvidence(undefined); setShowReset(false); dismissWelcome(); } }; window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn); }, []);
+  useEffect(() => { const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') { setEvidence(undefined); setShowReset(false); setShowEvaluation(false); dismissWelcome(); } }; window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn); }, []);
   useEffect(() => {
-    if (!evidence && !showReset && !showWelcome) return;
+    if (!evidence && !showReset && !showWelcome && !showEvaluation) return;
     const previous = document.activeElement as HTMLElement;
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
     const trap = (e: KeyboardEvent) => {
@@ -53,7 +55,7 @@ function App() {
     };
     document.addEventListener('keydown', trap);
     return () => { document.removeEventListener('keydown', trap); previous?.focus(); };
-  }, [evidence, showReset, showWelcome]);
+  }, [evidence, showReset, showWelcome, showEvaluation]);
   async function action(name: string, extra = {}) {
     setBusy(name); setError('');
     try {
@@ -91,6 +93,7 @@ function App() {
       <button className="nav-item active" onClick={() => { setTab('repair'); setEvidence(undefined); }}><Layers3 size={17} />Recoveries<span className="nav-count">1</span></button>
       <button className={`nav-item ${tab === 'activity' ? 'selected' : ''}`} onClick={() => setTab('activity')}><Activity size={17} />Activity</button>
       <button className={`nav-item ${tab === 'state' ? 'selected' : ''}`} onClick={() => setTab('state')}><GitBranch size={17} />App state</button>
+      <button className="nav-item" onClick={() => setShowEvaluation(true)}><ShieldCheck size={17} />Evaluation</button>
       <div className="sidebar-divider" />
       <div className="nav-label">{liveMode ? 'CONNECTED TO DEMO APPS' : twinMode ? 'CONNECTED TO TWINS' : 'CONNECTED TO SCENARIO'}</div>
       {(['GitHub', 'Linear', 'Slack'] as AppName[]).map(app => <button className="app-nav" key={app} onClick={() => setTab('state')}><AppIcon app={app} small />{app}<span className="local-dot" style={remote ? { background: '#7fae8f' } : undefined} /></button>)}
@@ -106,7 +109,7 @@ function App() {
       </div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div><span>Recoveries</span><ChevronRight size={13} /><strong>REC-024</strong></div><div><button className="button subtle" onClick={() => setShowWelcome(true)}>How it works</button><span className="top-status"><span />Development workspace</span></div></header>
+      <header className="topbar"><div style={{ minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' }}><span>Recoveries</span><ChevronRight size={13} /><strong>REC-024</strong></div><div style={{ gap: 6, flexShrink: 0 }}><button className="button subtle" style={{ paddingInline: 9 }} onClick={() => setShowEvaluation(true)}>Evaluation</button><button className="button subtle" style={{ paddingInline: 9 }} onClick={() => setShowWelcome(true)}>How it works</button><span className="top-status"><span />Development workspace</span></div></header>
       <main>
         <div className="eyebrow"><span className="tiny-square" />AGENT RECOVERY<span className="mono">/ 024</span></div>
         <div className="page-heading"><div><h1>A clean handoff.<br /><span>Even after a messy run.</span></h1><p>Review the impact. Preserve the good work. Repair the rest.</p></div><button className="button subtle" onClick={() => setShowReset(true)} disabled={!!busy}><RotateCcw size={14} />Reset scenario</button></div>
@@ -152,6 +155,7 @@ function App() {
       </main>
     </div>
     {evidence && w && <div className="drawer-backdrop" onClick={() => setEvidence(undefined)}><section className="evidence-drawer" role="dialog" aria-modal="true" aria-label="Source evidence" onClick={e => e.stopPropagation()}><div className="drawer-heading"><div className="small-label">SOURCE EVIDENCE</div><button autoFocus aria-label="Close evidence" onClick={() => setEvidence(undefined)}><PanelRightClose size={19} /></button></div><AppIcon app={evidence.app} /><h2>{evidence.title}</h2><p>{evidence.reason}</p><div className="evidence-origin"><ShieldCheck size={15} />{liveMode ? 'Journal recorded while recreating the run in your demo apps · not production telemetry' : 'Recorded local fixture · not production telemetry'}</div><h3>Recorded agent action</h3><p>{w.sourceActions.find(a => a.id === evidence.evidenceId)?.description}</p><pre>{JSON.stringify(w.sourceActions.find(a => a.id === evidence.evidenceId), null, 2)}</pre><h3>Current app record</h3><pre>{JSON.stringify(w.records.find(r => r.id === evidence.recordId), null, 2)}</pre><div className="drawer-warning">These source records are seeded scenario evidence. A live integration must corroborate provenance before recommending a repair.</div></section></div>}
+    {showEvaluation && <EvaluationView onClose={() => setShowEvaluation(false)} />}
     {showWelcome && <Welcome
       connectionsEnabled={config.connections === 'enabled'}
       onClose={dismissWelcome}

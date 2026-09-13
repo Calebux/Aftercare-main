@@ -100,6 +100,8 @@ test('HTTP review refreshes twins and rejects conflicting mutations during execu
     assert.equal((await post('reset')).status, 200, 'the mutation gate must release after completion');
     const config = await (await fetch(`${base}/api/config`)).json();
     assert.equal(config.connections, 'disabled', 'scenario-only runs never enable writes to real apps');
+    const { evaluation } = await (await fetch(`${base}/api/evaluation`)).json();
+    assert.ok(Array.isArray(evaluation?.scenarios) && evaluation.scenarios.length > 0, 'committed evaluation results are served');
     assert.equal((await post('connect-live')).status, 409);
   } finally {
     releaseWrite(); child.kill(); await exited;

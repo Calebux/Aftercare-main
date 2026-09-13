@@ -6,13 +6,14 @@ const steps = [
   { icon: <ShieldCheck size={18} />, title: 'Aftercare flags the mistakes', text: 'A duplicate issue, the wrong owner, a premature announcement: each is marked with the evidence behind it.' },
   { icon: <Wrench size={18} />, title: 'You approve, Aftercare repairs', text: 'Nothing changes until you approve. Each fix is checked again in the real app afterwards.' },
 ];
-const card: React.CSSProperties = { border: '1px solid #e4e3dc', borderRadius: 8, background: '#fff', padding: 16 };
+export const dialog: React.CSSProperties = { width: 'min(780px, 100%)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', background: '#fafaf7', border: '1px solid #e4e1da', borderRadius: 12, padding: 'clamp(20px, 4vw, 34px)', boxShadow: '0 20px 80px #28203020' };
+const card: React.CSSProperties ={ border: '1px solid #e4e3dc', borderRadius: 8, background: '#fff', padding: 16 };
 const link: React.CSSProperties = { color: '#6653ac', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: 3 };
 
 /** First-visit introduction: what Aftercare does, how to try it, and what to look for. */
 export function Welcome({ connectionsEnabled, onClose, onSample, onOwnApps }: { connectionsEnabled: boolean; onClose: () => void; onSample: () => void; onOwnApps: () => void }) {
   return <div className="modal-backdrop">
-    <section role="dialog" aria-modal="true" aria-labelledby="welcome-title" style={{ width: 'min(780px, 100%)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', background: '#fafaf7', border: '1px solid #e4e1da', borderRadius: 12, padding: 'clamp(20px, 4vw, 34px)', boxShadow: '0 20px 80px #28203020' }}>
+    <section role="dialog" aria-modal="true" aria-labelledby="welcome-title" style={dialog}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div className="small-label">WELCOME TO AFTERCARE</div>
         <button aria-label="Close introduction" onClick={onClose} style={{ color: '#8e8a94', display: 'flex' }}><X size={18} /></button>
@@ -53,6 +54,7 @@ export function Welcome({ connectionsEnabled, onClose, onSample, onOwnApps }: { 
         <li><strong>Open the Agent run tab</strong> to see every recorded action and why three of them need repair.</li>
         <li><strong>Change a record after preparing the plan</strong> (Simulate a human edit, or edit Linear directly). Approval is blocked and the person’s change is kept.</li>
         <li><strong>Tick “Interrupt after the first write”</strong> before applying. Aftercare resumes without repeating anything, then you can export the receipt.</li>
+        <li><strong>Open Evaluation</strong> in the top bar for repeated, seeded trials of nine failure scenarios, judged by the apps’ final state.</li>
       </ul>
     </section>
   </div>;

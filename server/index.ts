@@ -1,5 +1,5 @@
 import express, { type Request, type Response } from 'express';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { seedWorkspace, prepare, prepareCurrent, approveCurrent, refreshRecords, execute, humanEdit, RecoveryError, snapshot, event, localAdapter } from './recovery.js';
 import { provisionAndSeed, twinAdapter, twinCredentials } from './twins.js';
@@ -109,6 +109,11 @@ const connectionsBody = (slot: Slot) => ({ apps: connectionView(slot.connections
 app.get('/api/connections', (req, res) => withSlot(req, res, slot => res.json(connectionsBody(slot))));
 // Served from memory only, so polling can never trigger provider calls.
 app.get('/api/run/live', (req, res) => withSlot(req, res, slot => res.json({ run: slot.liveRun ?? null })));
+// A fixed, committed file: nothing from the request is used to locate it.
+app.get('/api/evaluation', (_req, res) => {
+  try { res.json({ evaluation: JSON.parse(readFileSync(resolve('eval/results.json'), 'utf8')) }); }
+  catch { res.json({ evaluation: null }); }
+});
 app.get('/api/connections/:provider/resources', (req, res) => withSlot(req, res, async slot => {
   const provider = req.params.provider;
   if (!isProvider(provider)) throw new RecoveryError('Unknown app.', 404);
