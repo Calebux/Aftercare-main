@@ -11,7 +11,8 @@
     "test:ui": "playwright test",
     "eval": "tsx eval/run.ts",
     "eval:agent": "tsx eval/run-investigations.ts",
-    "eval:holdout": "tsx eval/run-holdout.ts"
+    "eval:holdout": "tsx eval/run-holdout.ts",
+    "demo:record": "tsx scripts/record-demo.ts"
   },
   "dependencies": {
     "express": "^5.1.0",
