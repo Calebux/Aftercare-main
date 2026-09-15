@@ -17,3 +17,11 @@ services:
         value: "22"
       - key: OPENROUTER_MODEL
         value: deepseek/deepseek-v4-flash
+      # This plan's disk is erased by every restart, deploy, and sleep. Set these three under
+      # Environment to keep workspaces in Convex; see "Keep workspaces across restarts" in the README.
+      - key: CONVEX_URL
+        sync: false
+      - key: AFTERCARE_CONVEX_TOKEN
+        sync: false
+      - key: AFTERCARE_STORE_KEY
+        sync: false

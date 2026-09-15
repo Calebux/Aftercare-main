@@ -74,6 +74,20 @@ test('known writes reconcile after a read outage without duplicate creates', asy
   assert.equal(writes, 2);
 });
 
+test('a write intent that cannot be saved sends no request and leaves the run resumable', async () => {
+  const { adapter, run } = await fixture();
+  let writes = 0;
+  const counting: OnboardingAdapter = { ...adapter, async write(r, step) { writes++; return adapter.write(r, step); } };
+  const unavailable = async () => { if (run.steps.some(s => s.status === 'writing')) throw new Error('store unavailable'); };
+  await assert.rejects(executeBusinessRun(run, counting, unavailable), /store unavailable/);
+  assert.equal(writes, 0);
+  assert.equal(run.status, 'needs_attention');
+  assert.equal(run.steps[0].status, 'pending', 'no request was sent, so the step is not uncertain');
+  await executeBusinessRun(run, counting, async () => {});
+  assert.equal(run.status, 'complete');
+  assert.equal(writes, 2);
+});
+
 test('later human changes and changed app destinations stop continuation without overwriting', async () => {
   const { workspace, adapter, run } = await fixture();
   const modified: OnboardingAdapter = { ...adapter, async verify(r, step) {
@@ -104,16 +118,16 @@ test('business state survives restart and recovery resets; credentials never rea
   const dir = await mkdtemp(join(tmpdir(), 'aftercare-business-'));
   try {
     const options = { dir, hosted: false, secureCookie: false, operatorConnections: {} };
-    const sessions = createSessions(options);
+    const sessions = await createSessions(options);
     const slot = sessions.resolve({} as Request, {} as Response);
     slot.business = (await fixture()).workspace;
     slot.business.runs[0].status = 'running';
     slot.businessConnections = { hubspot: { token: 'secret-app-token', account: 'A', identity: 'account-a' } };
     slot.businessModel = { key: 'secret-model-key', model: 'model' };
-    slot.persist();
+    await slot.persist();
     const stored = await readFile(join(dir, 'workspace.json'), 'utf8');
     assert.ok(!stored.includes('secret-app-token') && !stored.includes('secret-model-key'));
-    const restored = createSessions(options).resolve({} as Request, {} as Response);
+    const restored = (await createSessions(options)).resolve({} as Request, {} as Response);
     assert.equal(restored.business?.agents.length, 1);
     assert.equal(restored.business?.runs[0].status, 'needs_attention');
     assert.deepEqual(restored.businessConnections, {});
@@ -124,7 +138,7 @@ test('business state survives restart and recovery resets; credentials never rea
 
 test('HTTP onboarding isolates hosted workspaces, rejects unsupported actions, and disables all live calls in sample mode', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'aftercare-business-http-'));
-  const sessions = createSessions({ dir, hosted: true, secureCookie: false, operatorConnections: {} });
+  const sessions = await createSessions({ dir, hosted: true, secureCookie: false, operatorConnections: {} });
   const app = express(); app.use(express.json()); app.use('/api/business', businessRoutes({ resolve: sessions.resolve, liveEnabled: false }));
   const server = app.listen(0, '127.0.0.1'); await once(server, 'listening');
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/business`;

@@ -72,7 +72,7 @@ export async function prepareBusinessRun(workspace: BusinessWorkspace, agent: Bu
   return run;
 }
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-export async function executeBusinessRun(run: BusinessRun, adapter: OnboardingAdapter, persist: () => void): Promise<void> {
+export async function executeBusinessRun(run: BusinessRun, adapter: OnboardingAdapter, persist: () => void | Promise<void>): Promise<void> {
   if (run.status === 'complete') return;
   if (!['review', 'needs_attention'].includes(run.status)) throw new RecoveryError('This run cannot be approved or resumed.', 409);
   if (!equal(adapter.targets(), run.targets)) throw new RecoveryError('App connections or destinations changed. Reconnect the original apps to continue this run.', 409);
@@ -80,11 +80,13 @@ export async function executeBusinessRun(run: BusinessRun, adapter: OnboardingAd
   if (!equal(await adapter.readDeal(run.deal.id), run.deal)) {
     run.status = hadWrites ? 'needs_attention' : 'stale';
     run.error = 'The HubSpot deal changed since review. Existing work was preserved. Prepare a fresh plan if no writes have started.';
-    log(run, run.error); persist(); throw new RecoveryError(run.error, 409);
+    log(run, run.error); await persist(); throw new RecoveryError(run.error, 409);
   }
   run.approvedAt ??= stamp(); run.status = 'running'; delete run.error;
-  log(run, hadWrites ? 'Resuming with verification of existing writes.' : 'Plan approved. Starting the reviewed actions.'); persist();
+  log(run, hadWrites ? 'Resuming with verification of existing writes.' : 'Plan approved. Starting the reviewed actions.');
   try {
+    // Inside the try, so a failed save leaves the run resumable instead of stuck as running.
+    await persist();
     for (const step of run.steps) {
       // Revalidate prior outputs, including on resume. Human edits stop the next write.
       for (const prior of run.steps.slice(0, run.steps.indexOf(step))) {
@@ -95,12 +97,14 @@ export async function executeBusinessRun(run: BusinessRun, adapter: OnboardingAd
       } else {
         if (!equal(await adapter.readDeal(run.deal.id), run.deal)) throw new RecoveryError('The deal changed during execution. Review the completed work before continuing.', 409);
         // Persist intent BEFORE the request. If the process dies here, the write is never retried blindly.
-        step.status = 'writing'; log(run, `Starting: ${step.title}.`); persist();
+        step.status = 'writing'; log(run, `Starting: ${step.title}.`);
+        // If the intent was not saved, the request was never sent, so the step is still safe to retry.
+        try { await persist(); } catch (error) { step.status = 'pending'; throw error; }
         const result = await adapter.write(run, step);
-        step.resultId = result.id; step.url = result.url; step.status = 'verifying'; persist();
+        step.resultId = result.id; step.url = result.url; step.status = 'verifying'; await persist();
       }
       if (!await adapter.verify(run, step)) { step.status = 'uncertain'; throw new RecoveryError('The app result does not match the approved plan. Review it in the app; no repair was attempted.', 409); }
-      step.status = 'verified'; step.verifiedAt = stamp(); log(run, `Verified: ${step.title}.`); persist();
+      step.status = 'verified'; step.verifiedAt = stamp(); log(run, `Verified: ${step.title}.`); await persist();
     }
     // A prior output can change while the final write is in flight. Check the entire result
     // again before reporting completion; this is observational, not an atomic transaction.
@@ -111,13 +115,15 @@ export async function executeBusinessRun(run: BusinessRun, adapter: OnboardingAd
       }
       step.verifiedAt = stamp();
     }
-    run.status = 'complete'; log(run, 'All approved outputs were read back and verified.'); persist();
+    run.status = 'complete'; log(run, 'All approved outputs were read back and verified.'); await persist();
   } catch (error) {
     run.status = 'needs_attention';
     const current = run.steps.find(s => ['writing', 'verifying'].includes(s.status));
     if (current) current.status = 'uncertain';
     run.error = error instanceof RecoveryError ? error.message : 'The run stopped unexpectedly. Check its recorded outputs before continuing.';
-    log(run, run.error); persist();
+    log(run, run.error);
+    // Report the original failure; if this save fails too, the next save reports that.
+    try { await persist(); } catch {}
     throw error;
   }
 }

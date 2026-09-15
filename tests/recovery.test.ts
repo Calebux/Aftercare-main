@@ -70,6 +70,27 @@ test('ambiguous interrupted write stops instead of repeating or continuing', asy
   assert.equal(w.records[2].fields.correction, '');
 });
 
+test('each app write waits until its operation is saved as running', async () => {
+  const w = seedWorkspace(); const p = prepare(w); approve(w, p.id);
+  let saved: { recordId: string; field: string } | undefined; let writes = 0;
+  const adapter = {
+    mode: 'local' as const,
+    async read(record: Workspace['records'][number], field: string) { return record.fields[field] ?? ''; },
+    async write(record: Workspace['records'][number], field: string, value: string) {
+      assert.equal(saved && `${saved.recordId}:${saved.field}`, `${record.id}:${field}`, 'the running state is saved before the app call');
+      writes++; record.fields[field] = value;
+    },
+  };
+  // A slow store: each save finishes only after the event loop turns.
+  await execute(w, p.id, async () => {
+    const running = p.operations.find(o => o.status === 'running');
+    await new Promise(resolve => setImmediate(resolve));
+    saved = running;
+  }, { adapter });
+  assert.equal(p.status, 'complete');
+  assert.equal(writes, 3);
+});
+
 test('overlapping executions cannot enter preflight together or report completion during a write', async () => {
   const w = seedWorkspace(); const p = prepare(w); approve(w, p.id);
   let release!: () => void;

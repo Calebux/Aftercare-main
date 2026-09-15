@@ -16,6 +16,7 @@
     "agent:example": "tsx examples/mcp-agent.ts"
   },
   "dependencies": {
+    "convex": "^1.45.0",
     "express": "^5.1.0",
     "lucide-react": "^0.577.0",
     "react": "^19.1.0",

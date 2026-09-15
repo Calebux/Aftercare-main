@@ -57,8 +57,8 @@ export function businessRoutes(options: { resolve(req: Request, res: Response): 
     }
     res.json(view(slot));
   }));
-  router.post('/agents', handle(true, (req, res, slot) => {
-    saveAgent(slot.business!, req.body); slot.persist(); res.json(view(slot));
+  router.post('/agents', handle(true, async (req, res, slot) => {
+    saveAgent(slot.business!, req.body); await slot.persist(); res.json(view(slot));
   }));
   router.post('/runs', handle(true, async (req, res, slot) => {
     const agent = slot.business!.agents.find(a => a.id === req.body.agentId);
@@ -80,14 +80,14 @@ export function businessRoutes(options: { resolve(req: Request, res: Response): 
       if (++slot.businessRate.count > 10) throw new RecoveryError('This beta allows 10 AI planning requests per workspace per hour.', 429);
     }
     const run = await prepareBusinessRun(slot.business!, { ...agent, planning: planner }, mode, dealId, adapter, async deal => key ? modelDraft(agent, deal, { key, model }) : templateDraft(agent, deal));
-    slot.persist(); res.json({ ...view(slot), runId: run.id });
+    await slot.persist(); res.json({ ...view(slot), runId: run.id });
   }));
   router.post('/runs/:id/:action', handle(true, async (req, res, slot) => {
     const run = slot.business!.runs.find(r => r.id === req.params.id);
     if (!run) throw new RecoveryError('Run not found.', 404);
     if (req.params.action === 'cancel') {
       if (run.status !== 'review') throw new RecoveryError('Only a plan awaiting approval can be cancelled.', 409);
-      run.status = 'cancelled'; run.events.push({ at: new Date().toISOString(), detail: 'Plan cancelled before execution. No writes made.' }); slot.persist();
+      run.status = 'cancelled'; run.events.push({ at: new Date().toISOString(), detail: 'Plan cancelled before execution. No writes made.' }); await slot.persist();
     } else if (req.params.action === 'execute') {
       if (run.mode === 'live') requireLive();
       const adapter = run.mode === 'sample' ? sampleOnboardingAdapter(slot.business!, run.agent.notifySlack) : liveOnboardingAdapter(slot.businessConnections!, run.agent.notifySlack);

@@ -174,7 +174,7 @@ export function approve(w: Workspace, planId: string) {
  * a write may proceed reads the provider, not the local mirror, so an out-of-band
  * change in a twin or live app stops execution the same way a local edit does.
  */
-export async function execute(w: Workspace, planId: string, persist: () => void, options: { adapter?: ProviderAdapter; interruptAfterWrite?: boolean } = {}) {
+export async function execute(w: Workspace, planId: string, persist: () => void | Promise<void>, options: { adapter?: ProviderAdapter; interruptAfterWrite?: boolean } = {}) {
   const { adapter = localAdapter, interruptAfterWrite = false } = options;
   const p = currentPlan(w);
   if (!p || p.id !== planId) throw new RecoveryError('The requested plan is no longer current.');
@@ -194,15 +194,15 @@ export async function execute(w: Workspace, planId: string, persist: () => void,
         if (acceptedRemotely) { r.fields[op.field] = op.proposed; r.revision = op.expectedRevision + 1; r.lastActor = 'aftercare'; }
         op.status = 'verified';
         event(w, 'Interrupted write reconciled', `${r.label} already contains the approved value. No duplicate write was made.`, 'success');
-        persist();
+        await persist();
       } else if (current === op.observed && r.fields[op.field] === op.observed && r.revision === op.expectedRevision) {
         // The app still shows the reviewed value and nothing was mirrored, so the write never took
         // effect. It is retried only after the usual checks re-read every record, including this one.
         op.status = 'proposed';
         event(w, 'Interrupted write not applied', `${r.label} still shows the reviewed value. The approved change will be retried after checks.`, 'warning');
-        persist();
+        await persist();
       } else {
-        op.status = 'uncertain'; p.status = 'interrupted'; persist();
+        op.status = 'uncertain'; p.status = 'interrupted'; await persist();
         throw new RecoveryError('The interrupted write cannot be verified. Further recovery requires investigation.');
       }
     }
@@ -215,7 +215,7 @@ export async function execute(w: Workspace, planId: string, persist: () => void,
       if (!guardsMatch || r.revision !== op.expectedRevision + (verified ? 1 : 0) || current !== (verified ? op.proposed : op.observed)) {
         p.status = 'stale';
         event(w, 'Execution stopped', `${r.label} changed since review. No remaining operations were applied.`, 'warning');
-        persist();
+        await persist();
         throw new RecoveryError('A record changed since approval. Review a fresh plan.');
       }
     };
@@ -225,25 +225,25 @@ export async function execute(w: Workspace, planId: string, persist: () => void,
       if (last) await check(last);
     };
     await checkAll();
-    p.status = 'executing'; persist();
+    p.status = 'executing'; await persist();
     for (const op of p.operations) {
       if (op.status !== 'proposed') continue;
       // Earlier provider calls may have taken seconds. Recheck dependencies and the
       // target before EACH write, including held assignments used in the summary.
       await checkAll(op);
-      op.status = 'running'; persist();
+      op.status = 'running'; await persist();
       const record = w.records.find(r => r.id === op.recordId)!;
       await adapter.write(record, op.field, op.proposed);
       record.fields[op.field] = op.proposed; record.revision++; record.lastActor = 'aftercare';
-      persist();
+      await persist();
       if (interruptAfterWrite) {
         p.status = 'interrupted';
         event(w, 'Connection interrupted after a write', 'The provider accepted the write. Resume to reconcile its state before continuing.', 'warning');
-        persist(); return p;
+        await persist(); return p;
       }
       if (await adapter.read(record, op.field) !== op.proposed) throw new RecoveryError('Read-back verification failed.');
       op.status = 'verified';
-      event(w, `${op.app} correction verified`, `${record.label}: ${op.field} matches the approved value.`, 'success'); persist();
+      event(w, `${op.app} correction verified`, `${record.label}: ${op.field} matches the approved value.`, 'success'); await persist();
     }
     // A later operation may have overlapped an external change to an earlier one.
     await checkAll();
@@ -254,13 +254,14 @@ export async function execute(w: Workspace, planId: string, persist: () => void,
     const verifiedCount = p.operations.filter(o => o.status === 'verified').length;
     const preservedCount = p.operations.filter(o => o.status === 'held').length;
     event(w, 'Recovery verified', `${verifiedCount} correction${verifiedCount === 1 ? '' : 's'} verified. ${preservedCount} record${preservedCount === 1 ? '' : 's'} preserved without a write.`, 'success');
-    persist(); return p;
+    await persist(); return p;
   } catch (error) {
     if (p.status === 'executing' || p.operations.some(o => o.status === 'running' || o.status === 'uncertain')) {
       for (const op of p.operations) if (op.status === 'running') op.status = 'uncertain';
       p.status = 'interrupted';
       event(w, 'Recovery interrupted', 'A provider call failed or its outcome could not be verified. Resume to reconcile before any remaining writes.', 'warning');
-      persist();
+      // Report the original failure; if this save fails too, the next save reports that.
+      try { await persist(); } catch {}
     }
     throw error;
   } finally {

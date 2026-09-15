@@ -233,7 +233,7 @@ flowchart LR
 | The pattern says | Aftercare | Evidence |
 | --- | --- | --- |
 | "the compensating transaction must intelligently account for concurrent work" | Re-reads the apps before review, approval, and each write. A changed record makes the plan stale, and the next plan keeps the person's value ([recovery.ts:71](server/recovery.ts#L71), [:230](server/recovery.ts#L230)) | Seeded trials: human edit after review 50/50, during a repair 50/50. Live: a Linear reassignment during review was kept (September 12, observed by the operator); an issue edited during review stayed open (September 13, checked through GitHub's API) |
-| "record progress so that it can resume the compensating transaction from the point of failure" | Each operation is saved as running before the app call and marked verified only after read-back; state survives a restart in `.data/` ([recovery.ts:255](server/recovery.ts#L255)) | Crash and restart 50/50 |
+| "record progress so that it can resume the compensating transaction from the point of failure" | Each operation is saved as running before the app call and marked verified only after read-back; state survives a restart in `.data/`, or in Convex when configured ([recovery.ts:255](server/recovery.ts#L255)) | Crash and restart 50/50 |
 | "A step might run multiple times when retried, so design each step as an idempotent command" | An interrupted write is reconciled by reading the app before any retry; a second approve or execute joins nothing ([recovery.ts:204](server/recovery.ts#L204)) | Lost response 50/50; repeated approval and execution 50/50; live interruption: a single close event on the duplicate (September 12); 0 duplicate effects across 53 writes in the development and v1 real-model evaluations on simulated apps |
 | "A step might not fail immediately but instead get blocked. You might need to implement a timeout mechanism." | 30-second timeout on app requests, with a stalled response reported as HTTP 504; 45 seconds per model request within a two-minute investigation ([providers.ts:26](server/providers.ts#L26), [investigator.ts:45](server/investigator.ts#L45)) | A stalled GitHub response found in a live run, then fixed ([VALIDATION.md](VALIDATION.md)) |
 | "When decisions are high impact or hard to automate reliably, include a human in the decision-making process." | The model only recommends. A person approves one exact plan version against one exact app state ([recovery.ts:177](server/recovery.ts#L177)) | Stale-approval tests and the seeded trials above |
@@ -445,6 +445,8 @@ With a public URL, Aftercare:
 - ignores the operator's `AFTERCARE_*` tokens and Arga configuration, so visitors
   reach only the apps they connect themselves;
 - keeps visitors' tokens in server memory only, so a restart asks them to reconnect;
+- saves visitors' workspaces in Convex when `CONVEX_URL` is set, encrypted before they leave
+  the server, so they survive restarts (see [Keep workspaces across restarts](#keep-workspaces-across-restarts));
 - turns AI investigation off unless `AFTERCARE_HOSTED_AI=1`, so visitors cannot spend
   the operator's OpenRouter key by default;
 - refuses to start without the production build, and answers only requests addressed
@@ -468,8 +470,26 @@ This repository includes a Render Blueprint, [`render.yaml`](render.yaml). In Re
 that builds with `npm ci --include=dev && npm run build`, starts with `npm start`, and runs as a
 hosted instance at its `onrender.com` address. AI investigation stays off until you add
 `OPENROUTER_API_KEY` and `AFTERCARE_HOSTED_AI=1` under **Environment**. Free instances sleep after
-15 minutes without traffic and take about a minute to wake; a restart loses visitors' workspaces,
-tokens, and agent keys.
+15 minutes without traffic and take about a minute to wake; a restart loses visitors' tokens and agent
+keys, and their workspaces too unless you set up Convex as described below.
+
+### Keep workspaces across restarts
+
+Render's free plan erases the disk on every restart, deploy, and sleep. To keep visitors' workspaces and
+run history, store them in a free [Convex](https://www.convex.dev) deployment:
+
+1. Create a Convex project, then run `npx convex dev --once` in this repository. It pushes the functions
+   in [`convex/`](convex) and writes `CONVEX_DEPLOYMENT` and `CONVEX_URL` to `.env.local`.
+2. Generate two secrets and keep them somewhere safe, such as `.env.local`:
+   `node -e "for (const n of ['AFTERCARE_CONVEX_TOKEN', 'AFTERCARE_STORE_KEY']) console.log(n + '=' + require('crypto').randomBytes(32).toString('base64url'))"`
+3. Store only the token in Convex: run `npx convex env set AFTERCARE_CONVEX_TOKEN` and paste it.
+4. In Render, add `CONVEX_URL`, `AFTERCARE_CONVEX_TOKEN`, and `AFTERCARE_STORE_KEY` under **Environment**.
+
+The server encrypts each workspace with `AFTERCARE_STORE_KEY` before sending it, so Convex holds only
+ciphertext. Convex functions are public, so each one checks the token before doing anything. Every save
+waits for Convex to confirm it, so an app write starts only after its intent is stored. If the key is
+lost, saved workspaces can't be read, and the server refuses to start rather than replace them. App
+tokens and agent keys still stay in memory only.
 
 ## Arga twins (optional)
 

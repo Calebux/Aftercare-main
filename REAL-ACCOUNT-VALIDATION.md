@@ -120,7 +120,7 @@ of the agent's AI setting; it is not a real-model acceptance test.
 | Needs attention with a saved result link | Inspect the existing result first. **Verify & resume** checks it rather than creating it again |
 | A write may have succeeded but its response was lost | Check the destination manually. There may already be a record; the beta will not retry an unknown create automatically |
 
-Run history is separate from app credentials. Local history uses `.data`; hosted browser
+Run history is separate from app credentials. Local history uses `.data`, or Convex when `CONVEX_URL` is set; hosted browser
 sessions expire after 12 idle hours. Export receipts you want to retain. Restarting the
 server during validation requires reconnecting credentials and is not necessary for the
 initial live acceptance check.

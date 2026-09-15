@@ -8,6 +8,7 @@ import { investigate } from './investigator.js';
 import { connectLive, liveAdapter, readLiveConfig } from './live.js';
 import { connectionView, connectionsFromEnv, identify, isProvider, listResources, liveConfigFor, selectResource } from './connections.js';
 import { createSessions, type Slot } from './sessions.js';
+import { convexStore } from './store.js';
 import { evidenceScenario } from './scenarios.js';
 import { evidenceScenarios, type EvidenceScenario } from '../shared/scenarios.js';
 import { recordLink } from './links.js';
@@ -40,8 +41,10 @@ const credentials = twinCredentials();
 // Links in alerts and agent responses use the configured address, never the request, and carry no session.
 const reviewUrl = `${publicUrl ?? `http://127.0.0.1:${port}`}/recoveries`;
 const twinTtl = Number(process.env.ARGA_TWIN_TTL_MINUTES || 10);
-const sessions = createSessions({
+const sessions = await createSessions({
   dir: resolve(process.env.AFTERCARE_DATA_DIR || '.data'),
+  // Convex keeps workspaces on hosts whose disk is erased by restarts, such as Render's free plan.
+  store: process.env.CONVEX_URL ? convexStore(process.env.CONVEX_URL, process.env.AFTERCARE_CONVEX_TOKEN, process.env.AFTERCARE_STORE_KEY) : undefined,
   hosted,
   secureCookie: Boolean(publicUrl?.startsWith('https://')),
   operatorConnections: operatorLive ? connectionsFromEnv(operatorLive) : {},
@@ -82,7 +85,7 @@ function fail(res: Response, error: unknown, slot?: Slot) {
 async function withSlot(req: Request, res: Response, run: (slot: Slot) => unknown) {
   let slot: Slot | undefined;
   try { slot = sessions.resolve(req, res); await run(slot); }
-  catch (error) { if (req.method !== 'GET') slot?.persist(); fail(res, error, slot); }
+  catch (error) { if (req.method !== 'GET') await slot?.persist().catch(() => {}); fail(res, error, slot); }
 }
 /** Remote bindings must stay usable; twin and live recoveries never fall back to local writes. */
 function adapterFor(slot: Slot) {
@@ -205,7 +208,7 @@ app.post('/api/agent/runs/current/actions', (req, res) => withAgent(req, res, as
 }));
 app.post('/api/agent/runs/current/finish', (req, res) => withAgent(req, res, async slot => {
   const result = await finishExternalRun(slot, agentScope(slot), { reviewUrl });
-  if (result.repairable) slot.persist();
+  if (result.repairable) await slot.persist();
   return { repairable: result.repairable, recorded: result.recorded, flagged: result.flagged, review: result.repairable ? reviewUrl : null };
 }));
 app.post('/api/agent/runs/current/discard', (req, res) => withAgent(req, res, async slot => { discardExternalRun(slot); return { discarded: true }; }));
@@ -224,7 +227,7 @@ app.post('/mcp', async (req, res) => {
     try {
       const config = liveConfigFor(slot.connections);
       const response = await handleMcp(slot, req.body, config ? { config, fetcher: fetch } : undefined, { reviewUrl });
-      if (slot.workspace.mode === 'live') slot.persist();
+      if (slot.workspace.mode === 'live') await slot.persist();
       if (response === null) { res.status(202).end(); return; }
       res.json(response);
     } finally { if (call) slot.activeAction = undefined; }
@@ -244,8 +247,9 @@ app.post('/api/:action', (req, res) => withSlot(req, res, async slot => {
           await refreshRecords(workspace, adapterFor(slot));
           const captured = structuredClone(workspace);
           const expected = snapshot(captured);
-          event(workspace, 'AI investigation started', 'OpenRouter will inspect the journal and each app record using scoped, read-only tools.'); persist();
-          const finding = await investigate(captured, { key: process.env.OPENROUTER_API_KEY, model: process.env.OPENROUTER_MODEL, onTool: detail => { event(workspace, 'Investigator tool call', detail); persist(); } });
+          event(workspace, 'AI investigation started', 'OpenRouter will inspect the journal and each app record using scoped, read-only tools.'); await persist();
+          // Tool-call notes are saved without waiting; the save after the investigation reports a storage failure.
+          const finding = await investigate(captured, { key: process.env.OPENROUTER_API_KEY, model: process.env.OPENROUTER_MODEL, onTool: detail => { event(workspace, 'Investigator tool call', detail); persist().catch(() => {}); } });
           await refreshRecords(workspace, adapterFor(slot));
           if (slot.workspace !== workspace || snapshot(workspace) !== expected) throw new RecoveryError('App state changed during investigation. Run a fresh investigation.');
           acceptInvestigation(workspace, finding);
@@ -272,7 +276,7 @@ app.post('/api/:action', (req, res) => withSlot(req, res, async slot => {
         const config = liveConfigFor(slot.connections);
         if (!config) throw new RecoveryError('Connect GitHub, Linear and Slack, and choose a repository, team and channel first.', 409);
         if (slot.workspace.mode !== 'local' || slot.workspace.plans.length) throw new RecoveryError('Reset the workspace before connecting your apps.');
-        event(slot.workspace, 'Running onboarding-agent', 'Checking access, then running the agent through the recorder in your GitHub repository, Linear team and Slack channel.'); persist();
+        event(slot.workspace, 'Running onboarding-agent', 'Checking access, then running the agent through the recorder in your GitHub repository, Linear team and Slack channel.'); await persist();
         slot.liveRun = undefined;
         await connectLive(slot.workspace, config, fetch, {
           reviewUrl,
@@ -284,13 +288,13 @@ app.post('/api/:action', (req, res) => withSlot(req, res, async slot => {
       case 'provision-twins': {
         if (!arga) throw new RecoveryError('Arga is not configured. Add the MCP credential to local configuration.', 409);
         if (slot.workspace.plans.length) throw new RecoveryError('Reset the workspace before binding it to twins.');
-        event(slot.workspace, 'Provisioning twins', 'Requesting github, linear and slack twin runs from Arga.'); persist();
+        event(slot.workspace, 'Provisioning twins', 'Requesting github, linear and slack twin runs from Arga.'); await persist();
         await provisionAndSeed(slot.workspace, twinTtl, credentials, arga);
         break;
       }
       default: throw new RecoveryError('Unknown operation.', 404);
     }
-    persist(); res.json(publicView(slot.workspace));
+    await persist(); res.json(publicView(slot.workspace));
   } finally { slot.activeAction = undefined; }
 }));
 

@@ -168,7 +168,7 @@ test('the MCP handler follows JSON-RPC and tool errors never expose provider res
 test('agent keys are shown once, stored only as hashes, and stop working when revoked or replaced', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'aftercare-keys-'));
   try {
-    const sessions = createSessions({ dir, hosted: false, secureCookie: false, operatorConnections: {} });
+    const sessions = await createSessions({ dir, hosted: false, secureCookie: false, operatorConnections: {} });
     const slot = sessions.resolve({ headers: {} } as unknown as Request, {} as Response);
     const key = sessions.issueAgentKey(slot);
     assert.match(key, /^aft_[A-Za-z0-9_-]{43}$/);
