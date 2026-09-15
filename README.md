@@ -1,11 +1,75 @@
 # Aftercare
 
+## Agent workspace beta
+
+The home page now starts with agents, connected apps, and run history. The first business
+workflow reads a HubSpot deal, prepares a Notion onboarding page and checklist, and optionally
+posts an internal handoff in Slack. Every run requires approval before writes and checks the
+resulting records afterward.
+
+Run `npm run dev`, then open **http://127.0.0.1:4310**:
+
+1. Choose **New agent**, enter an owner and instructions, and save.
+2. Choose **Try sample data**, select a fictional deal, and **Prepare plan**.
+3. Inspect the page and message previews, then **Approve & run sample**.
+4. Inspect the verified steps and export the receipt in **Runs**.
+5. Use **Apps** to connect HubSpot, a Notion parent page, and optionally Slack for a live run.
+
+Sample runs are deterministic and make no external app or model requests. Guided templates
+keep instructions verbatim as the page brief and add a standard checklist. AI planning
+interprets those instructions into a checklist; enable **Aftercare AI** using the existing
+server model configuration, or add an OpenRouter key and model ID in **Settings** and select
+**My model key** on the agent. AI planning sends the selected deal, owner, and instructions
+to the provider. The beta limits AI planning to 10 requests per workspace per hour, 20 saved
+agents, and 100 retained runs. It has no billing or scheduling implementation yet.
+
+### First business integrations
+
+For step-by-step account setup and acceptance checks, see
+[Real-account validation](REAL-ACCOUNT-VALIDATION.md).
+
+| App | Setup | Supported operation |
+| --- | --- | --- |
+| HubSpot | Private app token with `crm.objects.deals.read` | List up to 50 deals and re-read the selected deal before execution |
+| Notion | Internal integration with read/insert content capabilities; share an active parent page and enter its ID | Create a child page with a summary and checklist; verify its title, parent, and blocks |
+| Slack (optional) | Bot token; invite it to the chosen channel; `chat:write`, `channels:read`, `channels:history` (corresponding `groups` scopes for private channels) | Post a plain-text handoff and read it back from channel history |
+
+References: [HubSpot deals](https://developers.hubspot.com/docs/api-reference/legacy/crm/objects/deals/guide),
+[Notion setup](https://developers.notion.com/guides/get-started/quick-start).
+The Notion adapter pins API version `2022-06-28` and uses page parents, not databases or data sources.
+Jira, Gmail, Calendar, Salesforce, Airtable, Teams, and Zendesk are explicitly marked **Planned**.
+GitHub and Linear remain available in the separate recovery workflow.
+
+### Business workflow boundaries
+
+- This is a manually launched onboarding workflow, not an unrestricted multi-agent runner.
+  Checklist items do not create Jira/Linear tasks, send customer email, or assign app users.
+- Agent definitions, run history, and write intent are saved atomically alongside the existing
+  recovery workspace. Recovery resets preserve business runs. Hosted browser sessions still
+  expire after 12 idle hours; there is no account sign-in or durable team membership yet.
+  Production storage must be persistent to survive infrastructure replacement.
+- App tokens and BYOK model keys stay in server memory, are excluded from API views and
+  receipts, and must be re-entered after a restart. These are manual token connections, not OAuth.
+- Plan approval covers the exact saved content and destinations. Source deal changes or
+  connection changes block continuation. Each write's intent is saved before its request;
+  returned IDs are saved before read-back. Known results can be re-verified after interruption.
+- A lost create response with no returned record ID requires manual investigation. Aftercare
+  does not blindly retry it. New business runs do not yet use the incident-specific repair
+  engine; mismatches stop with **Needs attention** and leave human content intact.
+- One active/completed onboarding per deal and Notion destination prevents repeated launches
+  within a workspace. This does not discover duplicates created outside Aftercare or another
+  browser workspace. Provider reads and writes are not atomic with concurrent human edits.
+- Validation: isolated provider responses and sample browser runs cover the new workflow.
+  Live HubSpot/Notion acceptance and real-model onboarding acceptance remain to be performed.
+
+## Recovery workspace
+
 **The agent told Slack it was done. It wasn't.**
 
 Aftercare checks recorded agent work against GitHub, Linear, and Slack, then prepares an
 approved repair that accounts for what people changed afterward.
 
-**[Try Aftercare](https://aftercare-ynmc.onrender.com)** — choose **See it on sample data**.
+**[Try the recovery workspace](https://aftercare-ynmc.onrender.com/recoveries)** — choose **See it on sample data**.
 No accounts or keys needed. The hosted sample uses a real AI investigator with simulated
 app records; allow time for investigation and about a minute for a cold server to wake.
 

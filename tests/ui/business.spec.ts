@@ -1,0 +1,78 @@
+import { test, expect } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+
+test('create an agent, approve a sample handoff, and inspect the verified receipt on desktop and mobile', async ({ page, request }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  // The web server uses an isolated temporary data directory for every invocation.
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Give the work a good start.' })).toBeVisible();
+  await page.getByRole('button', { name: 'New agent', exact: true }).click();
+  await page.getByLabel('Agent name', { exact: true }).fill('Acme onboarding assistant');
+  await page.getByLabel('Handoff owner').fill('Sarah');
+  await page.getByLabel('Instructions', { exact: true }).fill('Collect brand assets and confirm the website scope.');
+  await page.getByRole('button', { name: 'Save agent', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Launch Acme onboarding assistant' })).toBeVisible();
+  await page.getByRole('button', { name: 'Prepare plan', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Approve & run sample' })).toBeVisible();
+  await expect(page.getByText('Collect brand assets and confirm the website scope.', { exact: false }).last()).toBeVisible();
+  let state = await (await request.get('/api/business')).json();
+  expect(state.runs[0].status).toBe('review');
+  expect(state.runs[0].steps.every((s: any) => s.status === 'pending')).toBe(true);
+  await page.getByRole('button', { name: 'Approve & run sample' }).click();
+  await expect(page.getByText('Sample handoff verified.', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Runs', exact: true }).click();
+  await page.getByRole('button', { name: /Acme · Website redesign/ }).click();
+  await expect(page.getByText('Sample handoff verified.', { exact: true })).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export receipt' }).click();
+  const receipt = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
+  expect(receipt.mode).toBe('sample');
+  expect(receipt.status).toBe('complete');
+  expect(receipt.steps).toHaveLength(2);
+  expect(receipt.agent.owner).toBe('Sarah');
+  await page.screenshot({ path: 'test-results/business-run-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/business-run-mobile.png', fullPage: true });
+  await page.getByRole('button', { name: 'Agents', exact: true }).click();
+  await page.getByRole('button', { name: 'Launch', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Prepare plan' }).click();
+  await expect(page.getByRole('alert')).toContainText('already has an onboarding run');
+  state = await (await request.get('/api/business')).json();
+  expect(state.runs.filter((r: any) => r.deal.id === 'sample-acme')).toHaveLength(1);
+  expect(errors).toEqual([]);
+});
+
+test('app directory is searchable, roadmap apps are honest, and recovery remains reachable', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Apps', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Search apps' }).fill('Jira');
+  await expect(page.getByRole('heading', { name: 'Jira', exact: true })).toBeVisible();
+  await expect(page.getByText('Planned', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Connect Jira' })).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Search apps' }).fill('');
+  await expect(page.getByRole('button', { name: 'Connect HubSpot', exact: true })).toBeDisabled();
+  await page.screenshot({ path: 'test-results/business-apps-desktop.png', fullPage: true });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your models. Your control.' })).toBeVisible();
+  await page.getByRole('link', { name: 'Recoveries', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: /When an AI agent makes a mess/ })).toBeVisible();
+  await page.getByRole('button', { name: 'See it on sample data' }).click();
+  await expect(page.getByRole('heading', { name: /A clean handoff/ })).toBeVisible();
+  await page.getByRole('link', { name: 'Back to agent home', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Give the work a good start.' })).toBeVisible();
+  await page.screenshot({ path: 'test-results/business-home-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/business-home-mobile.png', fullPage: true });
+  await page.getByRole('link', { name: 'Recoveries', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Back to agent home', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Back to agent home', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Give the work a good start.' })).toBeVisible();
+  // A first visit must also offer a direct exit from the introduction itself.
+  await page.evaluate(() => localStorage.removeItem('aftercare.welcome.seen'));
+  await page.getByRole('link', { name: 'Recoveries', exact: true }).click();
+  await page.getByRole('dialog').getByRole('link', { name: 'Back to agent home', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Give the work a good start.' })).toBeVisible();
+});

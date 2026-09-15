@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Activity, ArrowDown, ArrowRight, ArrowUpRight, Check, CheckCheck, ChevronRight, Circle, Clock3, Code2, ExternalLink, FileText, GitBranch, Github, Hash, Layers3, LoaderCircle, LockKeyhole, PanelRightClose, Play, RotateCcw, ShieldCheck, Sparkles, TriangleAlert, X, Zap } from 'lucide-react';
+import { Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, Check, CheckCheck, ChevronRight, Circle, Clock3, Code2, ExternalLink, FileText, GitBranch, Github, Hash, Home, Layers3, LoaderCircle, LockKeyhole, PanelRightClose, Play, RotateCcw, ShieldCheck, Sparkles, TriangleAlert, X, Zap } from 'lucide-react';
 import type { AgentRun, AppName, RepairOperation, Workspace } from '../../shared/types';
 import { ConnectApps } from './ConnectApps';
 import { AgentRunView } from './AgentRun';
 import { Welcome } from './Welcome';
 import { EvaluationView } from './Evaluation';
 import { AgentConnect } from './AgentConnect';
+import { BusinessHome } from './BusinessHome';
 import { evidenceScenarios, incidentCopy } from '../../shared/scenarios';
 
 const WELCOME_SEEN = 'aftercare.welcome.seen';
@@ -94,6 +95,7 @@ function App() {
       <a className="brand" href="/" aria-label="Aftercare home"><span className="brand-mark"><span /><span /><span /><span /></span>aftercare<span className="brand-period">.</span></a>
       <div className="workspace-picker"><span className="workspace-avatar">A</span><div>Acme workspace<small>Development</small></div><ChevronRight size={14} /></div>
       <div className="nav-label">WORKSPACE</div>
+      <a className="nav-item" href="/" aria-label="Agents home" title="Agents home"><Home size={17} />Agents home</a>
       <button className="nav-item active" onClick={() => { setTab('repair'); setEvidence(undefined); }}><Layers3 size={17} />Recoveries<span className="nav-count">1</span></button>
       <button className={`nav-item ${tab === 'activity' ? 'selected' : ''}`} onClick={() => setTab('activity')}><Activity size={17} />Activity</button>
       <button className={`nav-item ${tab === 'state' ? 'selected' : ''}`} onClick={() => setTab('state')}><GitBranch size={17} />App state</button>
@@ -115,6 +117,7 @@ function App() {
     <div className="main-shell">
       <header className="topbar"><div style={{ minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' }}><span>Recoveries</span><ChevronRight size={13} /><strong>REC-024</strong></div><div style={{ gap: 6, flexShrink: 0 }}><button className="button subtle" style={{ paddingInline: 9 }} onClick={() => setShowEvaluation(true)}>Evaluation</button><button className="button subtle" style={{ paddingInline: 9 }} onClick={() => setShowWelcome(true)}>How it works</button><span className="top-status"><span />Development workspace</span></div></header>
       <main>
+        <a className="recovery-home-link" href="/"><ArrowLeft size={15} />Back to agent home</a>
         <div className="eyebrow"><span className="tiny-square" />AGENT RECOVERY<span className="mono">/ 024</span></div>
         <div className="page-heading"><div><h1>A clean handoff.<br /><span>Even after a messy run.</span></h1><p>Review the impact. Preserve the good work. Repair the rest.</p></div><button className="button subtle" onClick={() => setShowReset(true)} disabled={!!busy}><RotateCcw size={14} />Reset scenario</button></div>
         {error && <div className="notice danger" role="alert"><TriangleAlert size={17} /><span>{error}</span><button aria-label="Dismiss error" onClick={() => setError('')}><X size={16} /></button></div>}
@@ -180,4 +183,4 @@ function App() {
     {showReset && <div className="modal-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="reset-title" className="reset-modal"><RotateCcw size={24} /><h2 id="reset-title">Start a fresh scenario?</h2><p>This replaces the local records, repair plans, and activity history.{liveMode ? ' Issues and messages already created in your demo apps stay there.' : ''} Export your receipt first if you want to keep it.</p><div><button autoFocus className="button outline" onClick={() => setShowReset(false)}>Keep current recovery</button><button className="button primary" onClick={() => { setShowReset(false); setTab('repair'); setInterrupt(false); action('reset'); }}>Reset scenario</button></div></section></div>}
   </div>;
 }
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<React.StrictMode>{window.location.pathname.startsWith('/recoveries') ? <App /> : <BusinessHome />}</React.StrictMode>);

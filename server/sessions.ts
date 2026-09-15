@@ -6,10 +6,17 @@ import type { AgentRun, Workspace } from '../shared/types.js';
 import { RecoveryError, seedWorkspace } from './recovery.js';
 import type { Connections } from './connections.js';
 import type { ExternalRun } from './external.js';
+import type { BusinessWorkspace } from '../shared/business.js';
+import type { BusinessConnections } from './business-providers.js';
+import { seedBusiness } from './business.js';
 
 /** One visitor's recovery workspace and app connections. */
 export interface Slot {
   workspace: Workspace;
+  business?: BusinessWorkspace;
+  businessConnections?: BusinessConnections;
+  businessModel?: { key: string; model: string };
+  businessRate?: { startedAt: number; count: number };
   /** Held in memory only, so a restart asks visitors to reconnect. */
   connections: Connections;
   /** The mutation in progress; conflicting requests from the same visitor are refused. */
@@ -24,13 +31,17 @@ export interface Slot {
 }
 
 function slotAt(file: string, connections: Connections): Slot {
-  const workspace: Workspace = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : seedWorkspace();
+  const { business = seedBusiness(), ...workspace }: Workspace & { business?: BusinessWorkspace } = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : seedWorkspace();
   // An execution interrupted by process exit must be reconciled before it resumes.
   for (const p of workspace.plans) if (p.status === 'executing') p.status = 'interrupted';
+  for (const run of business.runs) if (run.status === 'running') {
+    run.status = 'needs_attention';
+    run.error = 'The server restarted during execution. Reconnect the original apps and verify the recorded outputs before continuing.';
+  }
   const slot: Slot = {
-    workspace, connections, touched: Date.now(),
+    workspace, business, businessConnections: {}, connections, touched: Date.now(),
     persist() {
-      writeFileSync(file + '.tmp', JSON.stringify(slot.workspace, null, 2), { mode: 0o600 });
+      writeFileSync(file + '.tmp', JSON.stringify({ ...slot.workspace, business: slot.business }, null, 2), { mode: 0o600 });
       renameSync(file + '.tmp', file);
     },
   };

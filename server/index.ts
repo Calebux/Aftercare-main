@@ -14,6 +14,7 @@ import { recordLink } from './links.js';
 import { discardExternalRun, finishExternalRun, recordAction, startExternalRun, throttle, type Scope } from './external.js';
 import { handleMcp } from './mcp.js';
 import type { Workspace } from '../shared/types.js';
+import { businessRoutes } from './business-routes.js';
 
 if (existsSync('.env')) process.loadEnvFile('.env');
 const app = express();
@@ -37,7 +38,7 @@ const operatorLive = connectionsEnabled && !hosted ? readLiveConfig().config : u
 const arga = hosted ? undefined : argaConfig();
 const credentials = twinCredentials();
 // Links in alerts and agent responses use the configured address, never the request, and carry no session.
-const reviewUrl = publicUrl ?? `http://127.0.0.1:${port}`;
+const reviewUrl = `${publicUrl ?? `http://127.0.0.1:${port}`}/recoveries`;
 const twinTtl = Number(process.env.ARGA_TWIN_TTL_MINUTES || 10);
 const sessions = createSessions({
   dir: resolve(process.env.AFTERCARE_DATA_DIR || '.data'),
@@ -134,6 +135,7 @@ async function withAgent(req: Request, res: Response, run: (slot: Slot) => Promi
 }
 
 app.get('/api/workspace', (req, res) => withSlot(req, res, slot => res.json(publicView(slot.workspace))));
+app.use('/api/business', businessRoutes({ resolve: sessions.resolve, liveEnabled: connectionsEnabled, managedKey: modelEnabled ? process.env.OPENROUTER_API_KEY : undefined, managedModel: process.env.OPENROUTER_MODEL }));
 app.get('/api/records/:id/open', (req, res) => withSlot(req, res, async slot => {
   const record = slot.workspace.records.find(r => r.id === req.params.id);
   const config = liveConfigFor(slot.connections);

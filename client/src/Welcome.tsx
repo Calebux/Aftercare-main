@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, ExternalLink, ShieldCheck, Sparkles, Wrench, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ExternalLink, ShieldCheck, Sparkles, Wrench, X } from 'lucide-react';
 
 const steps = [
   { icon: <Sparkles size={18} />, title: 'The agent runs', text: 'onboarding-agent works across GitHub, Linear and Slack. Aftercare records every change it makes.' },
@@ -15,7 +15,7 @@ export function Welcome({ connectionsEnabled, onClose, onSample, onOwnApps }: { 
   return <div className="modal-backdrop">
     <section role="dialog" aria-modal="true" aria-labelledby="welcome-title" style={dialog}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-        <div className="small-label">WELCOME TO AFTERCARE</div>
+        <a href="/" className="recovery-home-link" style={{ marginBottom: 0 }}><ArrowLeft size={15} />Back to agent home</a>
         <button aria-label="Close introduction" onClick={onClose} style={{ color: '#8e8a94', display: 'flex' }}><X size={18} /></button>
       </div>
       <h2 id="welcome-title" style={{ fontFamily: 'Manrope, sans-serif', fontSize: 'clamp(22px, 3.2vw, 28px)', lineHeight: 1.3, letterSpacing: '-0.8px', margin: '12px 0 10px' }}>When an AI agent makes a mess across your apps, Aftercare cleans it up safely.</h2>

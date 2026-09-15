@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 test('operator rejects stale plan, preserves human work, and reconciles interruption', async ({ page, request }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   await request.post('/api/reset', { data: {} });
-  await page.goto('/');
+  await page.goto('/recoveries');
   await expect(page.getByRole('dialog', { name: /When an AI agent makes a mess/ })).toBeVisible();
   await page.getByRole('button', { name: 'See it on sample data' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -46,7 +46,7 @@ test('operator rejects stale plan, preserves human work, and reconciles interrup
 
 test('sample evidence changes the available repair and escalation survives reload', async ({ page, request }) => {
   await request.post('/api/reset', { data: {} });
-  await page.goto('/');
+  await page.goto('/recoveries');
   await page.getByRole('button', { name: 'See it on sample data' }).click();
   await page.getByLabel('Explore a different incident').selectOption('distinct-work');
   await expect(page.getByLabel('Explore a different incident')).toBeEnabled();
@@ -75,7 +75,7 @@ test('sample evidence changes the available repair and escalation survives reloa
 
 test('a second incident type loads from the picker and plans its own repairs', async ({ page, request }) => {
   await request.post('/api/reset', { data: {} });
-  await page.goto('/');
+  await page.goto('/recoveries');
   await page.getByRole('button', { name: 'See it on sample data' }).click();
   await page.getByLabel('Explore a different incident').selectOption('release');
   await expect(page.getByRole('heading', { name: 'Release v2.4 was announced too early' })).toBeVisible();
